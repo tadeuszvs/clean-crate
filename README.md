@@ -17,6 +17,7 @@ It does not download from streaming services.
 | `index.src.html` | Markup and styles; `build.js` inlines the two scripts |
 | `index.html` | The built single-file page. Do not edit by hand; run the build |
 | `test-*.js` | Tests on synthetic audio and sample links |
+| `icon.svg`, `*.png`, `manifest.webmanifest` | App icon (Crate A, Line) for the home screen and browser tab |
 
 ## Commands
 
