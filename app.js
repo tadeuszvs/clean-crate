@@ -116,6 +116,74 @@
       sec.appendChild(grid); box.appendChild(sec);
     });
   }
+  /* ---------- live lookup ---------- */
+  var lookupSeq = 0;
+  function renderLookup(vm, query) {
+    var box = $('lookup'); box.textContent = '';
+    if (vm.best) {
+      var b = el('div', 'best');
+      b.appendChild(el('span', 'best-label', vm.best.free ? 'Free lossless download' : 'Cheapest lossless option'));
+      var main = el('div', 'best-main');
+      main.appendChild(el('span', 'best-title', vm.best.artist + ' – ' + vm.best.title));
+      main.appendChild(el('span', 'best-price', vm.best.free ? 'Free' : (vm.best.price || '')));
+      b.appendChild(main);
+      b.appendChild(el('span', 'best-sub', vm.best.store + (vm.best.quality ? ' · ' + vm.best.quality : '') + (vm.best.match === 'exact' ? ' · exact match' : ' · ' + vm.best.match)));
+      var go = el('a', null, 'Open on ' + vm.best.store); go.href = vm.best.url; go.target = '_blank'; go.rel = 'noopener noreferrer';
+      b.appendChild(go);
+      box.appendChild(b);
+    } else {
+      box.appendChild(el('p', 'status', 'No price found automatically for "' + query + '". Check the matches and the store searches below.'));
+    }
+    if (vm.facts) {
+      var f = el('div', 'facts-line');
+      [vm.facts.album, vm.facts.year, vm.facts.length, vm.facts.bpm ? vm.facts.bpm + ' BPM' : null, vm.facts.key, vm.facts.label].filter(Boolean)
+        .forEach(function (t) { f.appendChild(el('span', null, String(t))); });
+      if (f.childNodes.length) box.appendChild(f);
+    }
+    var rows = vm.rows.filter(function (r) { return !r.none; });
+    if (rows.length) {
+      box.appendChild(el('h3', null, 'Matches found'));
+      var list = el('div', 'rows');
+      rows.forEach(function (r) {
+        var row = el('a', 'row'); row.href = r.url; row.target = '_blank'; row.rel = 'noopener noreferrer';
+        var m = el('div', 'row-main');
+        var top = el('span', 'row-top', r.store + ': ' + r.title);
+        var tagCls = !r.lossless ? 'tag tag-lossy' : (r.match === 'exact' || r.match === 'same song') ? 'tag tag-exact' : 'tag tag-version';
+        top.appendChild(el('span', tagCls, !r.lossless ? 'lossy' : r.match));
+        m.appendChild(top);
+        m.appendChild(el('span', 'row-sub', r.artist + (r.detail ? ' · ' + r.detail : '')));
+        row.appendChild(m);
+        row.appendChild(el('span', 'row-price' + (r.free ? ' free' : ''), r.price || 'Check'));
+        list.appendChild(row);
+      });
+      box.appendChild(list);
+    }
+    var missing = vm.rows.filter(function (r) { return r.none; }).map(function (r) { return r.store; });
+    var notes = [];
+    if (missing.length) notes.push('Not found on ' + missing.join(', ') + '.');
+    if (vm.unchecked.length) notes.push(vm.unchecked.map(Core.storeName).join(', ') + ' couldn\u2019t be checked automatically. Use the searches below.');
+    if (notes.length) box.appendChild(el('p', 'status', notes.join(' ')));
+    $('manual-head').hidden = false;
+  }
+  function runLookup(query) {
+    var box = $('lookup'), seq = ++lookupSeq;
+    box.textContent = '';
+    box.appendChild(el('p', 'status loading', 'Checking Bandcamp, Beatport, Qobuz and Apple for "' + query + '"…'));
+    var helper = fetch(Core.HELPER + '?q=' + encodeURIComponent(query)).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    var apple = fetch('https://itunes.apple.com/search?entity=song&limit=10&country=US&term=' + encodeURIComponent(query.replace(/\s+[-–—]\s+/, ' ')))
+      .then(function (r) { return r.json(); }).then(function (j) { return Core.appleItems(j, query); }).catch(function () { return []; });
+    Promise.all([helper.catch(function (e) { return { failed: true }; }), apple]).then(function (res) {
+      if (seq !== lookupSeq) return;
+      if (res[0].failed && !res[1].length) {
+        box.textContent = '';
+        box.appendChild(el('p', 'status', 'Live lookup isn\u2019t available here. Open tadeuszvs.github.io/clean-crate for prices. The store searches below still work.'));
+        $('manual-head').hidden = false;
+        return;
+      }
+      renderLookup(Core.viewModel(res[0].failed ? null : res[0], res[1]), query);
+    });
+  }
+
   function showFind(parsed, isExample) {
     current = parsed;
     $('find-refine').hidden = false;
@@ -127,6 +195,8 @@
     note.hidden = !note.textContent; note.className = 'note';
     $('add-crate').disabled = !!isExample;
     renderStores(parsed.query, parsed);
+    $('manual-head').hidden = true;
+    if (isExample) { ++lookupSeq; $('lookup').textContent = ''; } else runLookup(parsed.query);
   }
   function reveal(el) {
     var smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -139,7 +209,7 @@
     showFind(p, false);
     var box = $('find-refine');
     box.classList.remove('fresh'); void box.offsetWidth; box.classList.add('fresh');
-    if (fromSubmit) reveal(box);
+    if (fromSubmit) reveal($('lookup'));
   }
   $('find-form').addEventListener('submit', function (e) { e.preventDefault(); runFind($('find-input').value, true); });
   $('find-input').addEventListener('paste', function () { setTimeout(function () { if ($('find-input').value.trim()) runFind($('find-input').value, false); }, 0); });
@@ -151,7 +221,9 @@
       $('find-source').textContent = 'Typed'; $('find-source').className = 'chip'; $('find-note').hidden = true; $('add-crate').disabled = false;
     }
     current.query = q; renderStores(q, current);
+    clearTimeout(refineTimer); refineTimer = setTimeout(function () { runLookup(q); }, 700);
   });
+  var refineTimer;
   $('add-crate').addEventListener('click', function () {
     if (!current || !current.query) return;
     addItem({ q: current.query, src: current.source || 'Typed', url: current.url || '', got: false, added: Date.now() });

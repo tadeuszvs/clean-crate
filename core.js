@@ -447,6 +447,71 @@
     return found.score < 0.55 ? null : found;             // weak match to every key: do not guess
   };
 
+  /* ---------- live lookup ---------- */
+  C.HELPER = 'https://clean-crate-lookup.tadeusz-c41.workers.dev/';
+  var STORE_NAMES = { bandcamp: 'Bandcamp', beatport: 'Beatport', qobuz: 'Qobuz', itunes: 'Apple (iTunes)', musicbrainz: 'MusicBrainz' };
+  C.storeName = function (k) { return STORE_NAMES[k] || k; };
+  function mmss(s) { if (!s) return null; s = Math.round(s); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+  function normTxt(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+
+  /* Apple's search answers browsers directly; match it the same way the helper does. */
+  C.appleItems = function (json, query) {
+    var q = String(query || ''), parts = q.split(/\s+[-–—]\s+/), artist = parts.length > 1 ? normTxt(parts[0]) : '', title = normTxt(parts.length > 1 ? parts.slice(1).join(' ') : q);
+    return ((json && json.results) || []).filter(function (t) {
+      var it = ' ' + normTxt(t.trackName) + ' ', ia = ' ' + normTxt(t.artistName) + ' ';
+      var tOk = title.split(' ').every(function (w) { return (it + ia).indexOf(' ' + w + ' ') >= 0; });
+      var aOk = !artist || artist.split(' ').every(function (w) { return (ia + it).indexOf(' ' + w + ' ') >= 0; });
+      return tOk && aOk;
+    }).slice(0, 2).map(function (t) {
+      return { title: t.trackName, artist: t.artistName, album: t.collectionName || null, url: t.trackViewUrl,
+        price: t.trackPrice > 0 ? { value: t.trackPrice, currency: t.currency, display: (t.currency === 'USD' ? '$' : '') + t.trackPrice.toFixed(2) + (t.currency === 'USD' ? '' : ' ' + t.currency) } : null,
+        lossy: true, formats: 'AAC 256 kbps', match: normTxt(t.trackName) === title ? 'exact' : 'version',
+        year: (t.releaseDate || '').slice(0, 4) || null, lengthSec: t.trackTimeMillis ? Math.round(t.trackTimeMillis / 1000) : null };
+    });
+  };
+
+  /* Turn the helper's answer (plus Apple) into what the page shows. */
+  C.viewModel = function (data, apple) {
+    var src = (data && data.sources) || {};
+    var vm = { best: null, facts: null, rows: [], unchecked: [] };
+    var mb = src.musicbrainz && src.musicbrainz.items && src.musicbrainz.items[0];
+    var bp = src.beatport && src.beatport.items && src.beatport.items.filter(function (i) { return i.match === 'exact' || i.match === 'same song'; })[0];
+    if (mb || bp) {
+      var f = mb || {};
+      vm.facts = {
+        title: f.title || (bp && bp.title), artist: f.artist || (bp && bp.artist), album: f.album || (bp && bp.album) || null,
+        year: f.year || (bp && bp.year) || null, length: mmss(f.lengthSec), isrc: f.isrc || null,
+        bpm: bp && bp.bpm || null, key: bp && bp.key || null, label: bp && bp.label || null
+      };
+    }
+    if (data && data.best) {
+      var b = data.best;
+      vm.best = { store: C.storeName(b.store), title: b.title, artist: b.artist, url: b.url, free: !!b.free, price: b.price ? b.price.display : null, quality: b.quality, match: b.match };
+    }
+    ['bandcamp', 'beatport', 'qobuz'].forEach(function (k) {
+      var s = src[k];
+      if (!s || s.status === 'blocked' || s.status === 'error') { vm.unchecked.push(k); return; }
+      (s.items || []).forEach(function (it) {
+        var known = it.free || it.price;
+        vm.rows.push({ store: C.storeName(k), title: it.title, artist: it.artist, url: it.url, match: it.match,
+          price: it.free ? 'Free' : it.price ? it.price.display : null, free: !!it.free, nyp: !!it.nameYourPrice,
+          detail: [it.formats, it.quality, it.bpm ? it.bpm + ' BPM' : null, it.key].filter(Boolean).join(' · ') || (known ? '' : 'Open the page to check the price or a free download'),
+          lossless: true });
+      });
+      if (s.status === 'none') vm.rows.push({ store: C.storeName(k), none: true });
+    });
+    (apple || []).forEach(function (it) {
+      vm.rows.push({ store: 'Apple (iTunes)', title: it.title, artist: it.artist, url: it.url, match: it.match, price: it.price ? it.price.display : null, detail: 'AAC 256 kbps, lossy. Shown for reference', lossless: false });
+    });
+    var order = { 'exact': 0, 'same song': 1, 'version': 2, 'possible': 3 };
+    vm.rows.sort(function (a, b) {
+      if (a.none !== b.none) return a.none ? 1 : -1;
+      if (a.lossless !== b.lossless) return a.lossless ? -1 : 1;
+      return (order[a.match] || 0) - (order[b.match] || 0) || (a.free === b.free ? 0 : a.free ? -1 : 1);
+    });
+    return vm;
+  };
+
   C.khz = khz;
   root.Core = C;
   if (typeof module !== 'undefined' && module.exports) module.exports = C;

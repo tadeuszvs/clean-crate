@@ -103,6 +103,35 @@ button { font: inherit; font-weight: 600; cursor: pointer; border-radius: 12px; 
 .store-name::after { content: "\2197"; color: var(--accent); font-weight: 600; }
 .store-get { font-size: 13.5px; color: var(--muted); line-height: 1.4; }
 
+/* lookup */
+.lookup { display: flex; flex-direction: column; gap: 14px; }
+.lookup:empty { display: none; }
+.best { display: flex; flex-direction: column; gap: 8px; padding: 20px; border-radius: 18px; background: var(--accent); color: var(--accent-ink); }
+.best-label { font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; opacity: .85; }
+.best-main { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.best-title { font-family: var(--display); font-weight: 700; font-size: 22px; overflow-wrap: anywhere; }
+.best-price { font-family: var(--display); font-weight: 700; font-size: 28px; font-variant-numeric: tabular-nums; }
+.best-sub { font-size: 14px; opacity: .9; }
+.best a { align-self: flex-start; color: var(--accent); background: var(--accent-ink); text-decoration: none; font-weight: 700; padding: 11px 18px; border-radius: 12px; }
+.facts-line { display: flex; flex-wrap: wrap; gap: 6px 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.facts-line span { padding: 3px 9px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); }
+.rows { display: flex; flex-direction: column; border: 1.5px solid var(--line); border-radius: 16px; background: var(--panel); overflow: hidden; }
+.row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
+.row:first-child { border-top: 0; }
+a.row:hover { background: var(--paper); }
+.row-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row-top { font-weight: 600; overflow-wrap: anywhere; }
+.row-sub { font-size: 13px; color: var(--muted); }
+.row-price { font-family: var(--display); font-weight: 700; font-size: 17px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.row-price.free { color: var(--good); }
+.tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; margin-left: 6px; white-space: nowrap; }
+.tag-exact { color: var(--good); } .tag-version { color: var(--warn); } .tag-lossy { color: var(--muted); }
+.status { font-size: 14.5px; color: var(--muted); }
+@keyframes pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: no-preference) { .status.loading { animation: pulse 1.4s ease-in-out infinite; } }
+
+.manual-head { font-size: 18px; margin-top: 8px; }
+
 /* checker */
 .drop { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 34px 20px; border: 2px dashed var(--line); border-radius: 18px; background: var(--panel); cursor: pointer; }
 .drop:hover, .drop.over { border-color: var(--accent); }
@@ -186,7 +215,7 @@ footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--l
   <main>
     <section id="find" aria-labelledby="h-find">
       <h2 id="h-find">Find a track</h2>
-      <p class="lede">Paste an Apple Music or SoundCloud link, or type the artist and title. You get direct searches on the stores that sell real lossless files, plus the free and physical routes.</p>
+      <p class="lede">Type the artist and title, or paste an Apple Music or SoundCloud link. Clean Crate checks the stores that sell lossless files and shows you the cheapest option, free downloads, and the track’s BPM and key.</p>
       <form id="find-form" class="row" autocomplete="off">
         <label class="sr" for="find-input">Link, or artist and title</label>
         <input type="text" id="find-input" placeholder="Artist - Title, or paste a link" enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -200,6 +229,8 @@ footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--l
           <button class="secondary" type="button" id="add-crate">Add to crate</button>
         </div>
       </div>
+      <div class="lookup" id="lookup" aria-live="polite"></div>
+      <h2 class="manual-head" id="manual-head" hidden>Search the other stores yourself</h2>
       <div class="groups" id="find-result"></div>
     </section>
 
@@ -691,6 +722,71 @@ footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--l
     return found.score < 0.55 ? null : found;             // weak match to every key: do not guess
   };
 
+  /* ---------- live lookup ---------- */
+  C.HELPER = 'https://clean-crate-lookup.tadeusz-c41.workers.dev/';
+  var STORE_NAMES = { bandcamp: 'Bandcamp', beatport: 'Beatport', qobuz: 'Qobuz', itunes: 'Apple (iTunes)', musicbrainz: 'MusicBrainz' };
+  C.storeName = function (k) { return STORE_NAMES[k] || k; };
+  function mmss(s) { if (!s) return null; s = Math.round(s); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+  function normTxt(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+
+  /* Apple's search answers browsers directly; match it the same way the helper does. */
+  C.appleItems = function (json, query) {
+    var q = String(query || ''), parts = q.split(/\s+[-–—]\s+/), artist = parts.length > 1 ? normTxt(parts[0]) : '', title = normTxt(parts.length > 1 ? parts.slice(1).join(' ') : q);
+    return ((json && json.results) || []).filter(function (t) {
+      var it = ' ' + normTxt(t.trackName) + ' ', ia = ' ' + normTxt(t.artistName) + ' ';
+      var tOk = title.split(' ').every(function (w) { return (it + ia).indexOf(' ' + w + ' ') >= 0; });
+      var aOk = !artist || artist.split(' ').every(function (w) { return (ia + it).indexOf(' ' + w + ' ') >= 0; });
+      return tOk && aOk;
+    }).slice(0, 2).map(function (t) {
+      return { title: t.trackName, artist: t.artistName, album: t.collectionName || null, url: t.trackViewUrl,
+        price: t.trackPrice > 0 ? { value: t.trackPrice, currency: t.currency, display: (t.currency === 'USD' ? '$' : '') + t.trackPrice.toFixed(2) + (t.currency === 'USD' ? '' : ' ' + t.currency) } : null,
+        lossy: true, formats: 'AAC 256 kbps', match: normTxt(t.trackName) === title ? 'exact' : 'version',
+        year: (t.releaseDate || '').slice(0, 4) || null, lengthSec: t.trackTimeMillis ? Math.round(t.trackTimeMillis / 1000) : null };
+    });
+  };
+
+  /* Turn the helper's answer (plus Apple) into what the page shows. */
+  C.viewModel = function (data, apple) {
+    var src = (data && data.sources) || {};
+    var vm = { best: null, facts: null, rows: [], unchecked: [] };
+    var mb = src.musicbrainz && src.musicbrainz.items && src.musicbrainz.items[0];
+    var bp = src.beatport && src.beatport.items && src.beatport.items.filter(function (i) { return i.match === 'exact' || i.match === 'same song'; })[0];
+    if (mb || bp) {
+      var f = mb || {};
+      vm.facts = {
+        title: f.title || (bp && bp.title), artist: f.artist || (bp && bp.artist), album: f.album || (bp && bp.album) || null,
+        year: f.year || (bp && bp.year) || null, length: mmss(f.lengthSec), isrc: f.isrc || null,
+        bpm: bp && bp.bpm || null, key: bp && bp.key || null, label: bp && bp.label || null
+      };
+    }
+    if (data && data.best) {
+      var b = data.best;
+      vm.best = { store: C.storeName(b.store), title: b.title, artist: b.artist, url: b.url, free: !!b.free, price: b.price ? b.price.display : null, quality: b.quality, match: b.match };
+    }
+    ['bandcamp', 'beatport', 'qobuz'].forEach(function (k) {
+      var s = src[k];
+      if (!s || s.status === 'blocked' || s.status === 'error') { vm.unchecked.push(k); return; }
+      (s.items || []).forEach(function (it) {
+        var known = it.free || it.price;
+        vm.rows.push({ store: C.storeName(k), title: it.title, artist: it.artist, url: it.url, match: it.match,
+          price: it.free ? 'Free' : it.price ? it.price.display : null, free: !!it.free, nyp: !!it.nameYourPrice,
+          detail: [it.formats, it.quality, it.bpm ? it.bpm + ' BPM' : null, it.key].filter(Boolean).join(' · ') || (known ? '' : 'Open the page to check the price or a free download'),
+          lossless: true });
+      });
+      if (s.status === 'none') vm.rows.push({ store: C.storeName(k), none: true });
+    });
+    (apple || []).forEach(function (it) {
+      vm.rows.push({ store: 'Apple (iTunes)', title: it.title, artist: it.artist, url: it.url, match: it.match, price: it.price ? it.price.display : null, detail: 'AAC 256 kbps, lossy. Shown for reference', lossless: false });
+    });
+    var order = { 'exact': 0, 'same song': 1, 'version': 2, 'possible': 3 };
+    vm.rows.sort(function (a, b) {
+      if (a.none !== b.none) return a.none ? 1 : -1;
+      if (a.lossless !== b.lossless) return a.lossless ? -1 : 1;
+      return (order[a.match] || 0) - (order[b.match] || 0) || (a.free === b.free ? 0 : a.free ? -1 : 1);
+    });
+    return vm;
+  };
+
   C.khz = khz;
   root.Core = C;
   if (typeof module !== 'undefined' && module.exports) module.exports = C;
@@ -816,6 +912,74 @@ footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--l
       sec.appendChild(grid); box.appendChild(sec);
     });
   }
+  /* ---------- live lookup ---------- */
+  var lookupSeq = 0;
+  function renderLookup(vm, query) {
+    var box = $('lookup'); box.textContent = '';
+    if (vm.best) {
+      var b = el('div', 'best');
+      b.appendChild(el('span', 'best-label', vm.best.free ? 'Free lossless download' : 'Cheapest lossless option'));
+      var main = el('div', 'best-main');
+      main.appendChild(el('span', 'best-title', vm.best.artist + ' – ' + vm.best.title));
+      main.appendChild(el('span', 'best-price', vm.best.free ? 'Free' : (vm.best.price || '')));
+      b.appendChild(main);
+      b.appendChild(el('span', 'best-sub', vm.best.store + (vm.best.quality ? ' · ' + vm.best.quality : '') + (vm.best.match === 'exact' ? ' · exact match' : ' · ' + vm.best.match)));
+      var go = el('a', null, 'Open on ' + vm.best.store); go.href = vm.best.url; go.target = '_blank'; go.rel = 'noopener noreferrer';
+      b.appendChild(go);
+      box.appendChild(b);
+    } else {
+      box.appendChild(el('p', 'status', 'No price found automatically for "' + query + '". Check the matches and the store searches below.'));
+    }
+    if (vm.facts) {
+      var f = el('div', 'facts-line');
+      [vm.facts.album, vm.facts.year, vm.facts.length, vm.facts.bpm ? vm.facts.bpm + ' BPM' : null, vm.facts.key, vm.facts.label].filter(Boolean)
+        .forEach(function (t) { f.appendChild(el('span', null, String(t))); });
+      if (f.childNodes.length) box.appendChild(f);
+    }
+    var rows = vm.rows.filter(function (r) { return !r.none; });
+    if (rows.length) {
+      box.appendChild(el('h3', null, 'Matches found'));
+      var list = el('div', 'rows');
+      rows.forEach(function (r) {
+        var row = el('a', 'row'); row.href = r.url; row.target = '_blank'; row.rel = 'noopener noreferrer';
+        var m = el('div', 'row-main');
+        var top = el('span', 'row-top', r.store + ': ' + r.title);
+        var tagCls = !r.lossless ? 'tag tag-lossy' : (r.match === 'exact' || r.match === 'same song') ? 'tag tag-exact' : 'tag tag-version';
+        top.appendChild(el('span', tagCls, !r.lossless ? 'lossy' : r.match));
+        m.appendChild(top);
+        m.appendChild(el('span', 'row-sub', r.artist + (r.detail ? ' · ' + r.detail : '')));
+        row.appendChild(m);
+        row.appendChild(el('span', 'row-price' + (r.free ? ' free' : ''), r.price || 'Check'));
+        list.appendChild(row);
+      });
+      box.appendChild(list);
+    }
+    var missing = vm.rows.filter(function (r) { return r.none; }).map(function (r) { return r.store; });
+    var notes = [];
+    if (missing.length) notes.push('Not found on ' + missing.join(', ') + '.');
+    if (vm.unchecked.length) notes.push(vm.unchecked.map(Core.storeName).join(', ') + ' couldn\u2019t be checked automatically. Use the searches below.');
+    if (notes.length) box.appendChild(el('p', 'status', notes.join(' ')));
+    $('manual-head').hidden = false;
+  }
+  function runLookup(query) {
+    var box = $('lookup'), seq = ++lookupSeq;
+    box.textContent = '';
+    box.appendChild(el('p', 'status loading', 'Checking Bandcamp, Beatport, Qobuz and Apple for "' + query + '"…'));
+    var helper = fetch(Core.HELPER + '?q=' + encodeURIComponent(query)).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    var apple = fetch('https://itunes.apple.com/search?entity=song&limit=10&country=US&term=' + encodeURIComponent(query.replace(/\s+[-–—]\s+/, ' ')))
+      .then(function (r) { return r.json(); }).then(function (j) { return Core.appleItems(j, query); }).catch(function () { return []; });
+    Promise.all([helper.catch(function (e) { return { failed: true }; }), apple]).then(function (res) {
+      if (seq !== lookupSeq) return;
+      if (res[0].failed && !res[1].length) {
+        box.textContent = '';
+        box.appendChild(el('p', 'status', 'Live lookup isn\u2019t available here. Open tadeuszvs.github.io/clean-crate for prices. The store searches below still work.'));
+        $('manual-head').hidden = false;
+        return;
+      }
+      renderLookup(Core.viewModel(res[0].failed ? null : res[0], res[1]), query);
+    });
+  }
+
   function showFind(parsed, isExample) {
     current = parsed;
     $('find-refine').hidden = false;
@@ -827,6 +991,8 @@ footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--l
     note.hidden = !note.textContent; note.className = 'note';
     $('add-crate').disabled = !!isExample;
     renderStores(parsed.query, parsed);
+    $('manual-head').hidden = true;
+    if (isExample) { ++lookupSeq; $('lookup').textContent = ''; } else runLookup(parsed.query);
   }
   function reveal(el) {
     var smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -839,7 +1005,7 @@ footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--l
     showFind(p, false);
     var box = $('find-refine');
     box.classList.remove('fresh'); void box.offsetWidth; box.classList.add('fresh');
-    if (fromSubmit) reveal(box);
+    if (fromSubmit) reveal($('lookup'));
   }
   $('find-form').addEventListener('submit', function (e) { e.preventDefault(); runFind($('find-input').value, true); });
   $('find-input').addEventListener('paste', function () { setTimeout(function () { if ($('find-input').value.trim()) runFind($('find-input').value, false); }, 0); });
@@ -851,7 +1017,9 @@ footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--l
       $('find-source').textContent = 'Typed'; $('find-source').className = 'chip'; $('find-note').hidden = true; $('add-crate').disabled = false;
     }
     current.query = q; renderStores(q, current);
+    clearTimeout(refineTimer); refineTimer = setTimeout(function () { runLookup(q); }, 700);
   });
+  var refineTimer;
   $('add-crate').addEventListener('click', function () {
     if (!current || !current.query) return;
     addItem({ q: current.query, src: current.source || 'Typed', url: current.url || '', got: false, added: Date.now() });

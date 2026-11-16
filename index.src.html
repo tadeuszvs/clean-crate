@@ -103,6 +103,35 @@ button { font: inherit; font-weight: 600; cursor: pointer; border-radius: 12px; 
 .store-name::after { content: "\2197"; color: var(--accent); font-weight: 600; }
 .store-get { font-size: 13.5px; color: var(--muted); line-height: 1.4; }
 
+/* lookup */
+.lookup { display: flex; flex-direction: column; gap: 14px; }
+.lookup:empty { display: none; }
+.best { display: flex; flex-direction: column; gap: 8px; padding: 20px; border-radius: 18px; background: var(--accent); color: var(--accent-ink); }
+.best-label { font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; opacity: .85; }
+.best-main { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.best-title { font-family: var(--display); font-weight: 700; font-size: 22px; overflow-wrap: anywhere; }
+.best-price { font-family: var(--display); font-weight: 700; font-size: 28px; font-variant-numeric: tabular-nums; }
+.best-sub { font-size: 14px; opacity: .9; }
+.best a { align-self: flex-start; color: var(--accent); background: var(--accent-ink); text-decoration: none; font-weight: 700; padding: 11px 18px; border-radius: 12px; }
+.facts-line { display: flex; flex-wrap: wrap; gap: 6px 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.facts-line span { padding: 3px 9px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); }
+.rows { display: flex; flex-direction: column; border: 1.5px solid var(--line); border-radius: 16px; background: var(--panel); overflow: hidden; }
+.row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
+.row:first-child { border-top: 0; }
+a.row:hover { background: var(--paper); }
+.row-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row-top { font-weight: 600; overflow-wrap: anywhere; }
+.row-sub { font-size: 13px; color: var(--muted); }
+.row-price { font-family: var(--display); font-weight: 700; font-size: 17px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.row-price.free { color: var(--good); }
+.tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; margin-left: 6px; white-space: nowrap; }
+.tag-exact { color: var(--good); } .tag-version { color: var(--warn); } .tag-lossy { color: var(--muted); }
+.status { font-size: 14.5px; color: var(--muted); }
+@keyframes pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: no-preference) { .status.loading { animation: pulse 1.4s ease-in-out infinite; } }
+
+.manual-head { font-size: 18px; margin-top: 8px; }
+
 /* checker */
 .drop { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 34px 20px; border: 2px dashed var(--line); border-radius: 18px; background: var(--panel); cursor: pointer; }
 .drop:hover, .drop.over { border-color: var(--accent); }
@@ -186,7 +215,7 @@ footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--l
   <main>
     <section id="find" aria-labelledby="h-find">
       <h2 id="h-find">Find a track</h2>
-      <p class="lede">Paste an Apple Music or SoundCloud link, or type the artist and title. You get direct searches on the stores that sell real lossless files, plus the free and physical routes.</p>
+      <p class="lede">Type the artist and title, or paste an Apple Music or SoundCloud link. Clean Crate checks the stores that sell lossless files and shows you the cheapest option, free downloads, and the track’s BPM and key.</p>
       <form id="find-form" class="row" autocomplete="off">
         <label class="sr" for="find-input">Link, or artist and title</label>
         <input type="text" id="find-input" placeholder="Artist - Title, or paste a link" enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -200,6 +229,8 @@ footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--l
           <button class="secondary" type="button" id="add-crate">Add to crate</button>
         </div>
       </div>
+      <div class="lookup" id="lookup" aria-live="polite"></div>
+      <h2 class="manual-head" id="manual-head" hidden>Search the other stores yourself</h2>
       <div class="groups" id="find-result"></div>
     </section>
 
