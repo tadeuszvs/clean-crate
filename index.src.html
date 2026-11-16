@@ -90,6 +90,9 @@ button { font: inherit; font-weight: 600; cursor: pointer; border-radius: 12px; 
 .refine label { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .chip { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 9px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
 .chip-example { color: var(--warn); border-color: var(--warn); }
+@keyframes fresh { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 3px transparent; } }
+@media (prefers-reduced-motion: no-preference) { .refine.fresh { animation: fresh 1.2s ease-out; } }
+.refine.fresh { border-color: var(--accent); }
 
 .groups { display: flex; flex-direction: column; gap: 22px; }
 .group { display: flex; flex-direction: column; gap: 10px; }
@@ -186,14 +189,14 @@ footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--l
       <p class="lede">Paste an Apple Music or SoundCloud link, or type the artist and title. You get direct searches on the stores that sell real lossless files, plus the free and physical routes.</p>
       <form id="find-form" class="row" autocomplete="off">
         <label class="sr" for="find-input">Link, or artist and title</label>
-        <input type="text" id="find-input" placeholder="https://soundcloud.com/artist/track  or  Artist - Title" inputmode="url" autocapitalize="off" spellcheck="false">
+        <input type="text" id="find-input" placeholder="Artist - Title, or paste a link" enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false">
         <button class="primary" type="submit" id="find-go">Find sources</button>
       </form>
       <p class="note" id="find-note" hidden></p>
       <div class="refine" id="find-refine" hidden>
         <label for="find-query">Searching for <span class="chip" id="find-source"></span></label>
         <div class="row">
-          <input type="text" id="find-query" autocapitalize="off" spellcheck="false">
+          <input type="text" id="find-query" enterkeyhint="done" autocapitalize="off" autocorrect="off" spellcheck="false">
           <button class="secondary" type="button" id="add-crate">Add to crate</button>
         </div>
       </div>

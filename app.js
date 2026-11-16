@@ -128,13 +128,21 @@
     $('add-crate').disabled = !!isExample;
     renderStores(parsed.query, parsed);
   }
-  function runFind(text) {
-    var p = Core.parseInput(text);
-    if (!p.ok) { var note = $('find-note'); note.textContent = p.note; note.hidden = false; note.className = 'note note-warn'; return; }
-    showFind(p, false);
+  function reveal(el) {
+    var smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    setTimeout(function () { el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' }); }, 250);
   }
-  $('find-form').addEventListener('submit', function (e) { e.preventDefault(); runFind($('find-input').value); });
-  $('find-input').addEventListener('paste', function () { setTimeout(function () { runFind($('find-input').value); }, 0); });
+  function runFind(text, fromSubmit) {
+    var p = Core.parseInput(text);
+    if (fromSubmit) $('find-input').blur();   // drop the phone keyboard so the results can be seen
+    if (!p.ok) { var note = $('find-note'); note.textContent = p.note; note.hidden = false; note.className = 'note note-warn'; if (fromSubmit) reveal(note); return; }
+    showFind(p, false);
+    var box = $('find-refine');
+    box.classList.remove('fresh'); void box.offsetWidth; box.classList.add('fresh');
+    if (fromSubmit) reveal(box);
+  }
+  $('find-form').addEventListener('submit', function (e) { e.preventDefault(); runFind($('find-input').value, true); });
+  $('find-input').addEventListener('paste', function () { setTimeout(function () { if ($('find-input').value.trim()) runFind($('find-input').value, false); }, 0); });
   $('find-query').addEventListener('input', function () {
     if (!current) return;
     var q = $('find-query').value.trim(); if (!q) return;
