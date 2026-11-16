@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clean Crate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Music&amp;text=%F0%9D%84%9E&amp;display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;700&amp;family=Montserrat:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one calm column. The only loud thing is the header spectrum that runs into a wall. */
+:root {
+  --paper: #F2F0F7;
+  --panel: #FFFFFF;
+  --ink: #1C1730;
+  --muted: #655F7C;
+  --line: #DAD5E6;
+  --accent: #3A38E8;
+  --accent-ink: #FFFFFF;
+  --good: #17794C;
+  --warn: #9A6410;
+  --bad: #C02A45;
+  --display: "Comfortaa", "Montserrat", system-ui, sans-serif;
+  --body: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #13101E; --panel: #1C182D; --ink: #ECE9F6; --muted: #A49EBB; --line: #332D4B;
+    --accent: #918EFF; --accent-ink: #13101E; --good: #52C990; --warn: #E3AC52; --bad: #F2708A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #13101E; --panel: #1C182D; --ink: #ECE9F6; --muted: #A49EBB; --line: #332D4B;
+  --accent: #918EFF; --accent-ink: #13101E; --good: #52C990; --warn: #E3AC52; --bad: #F2708A;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.55; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 0 20px 72px; display: flex; flex-direction: column; gap: 56px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+h1, h2, h3, p, ul { margin: 0; }
+ul { padding: 0; list-style: none; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+/* header */
+.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; padding-top: 44px; flex-wrap: wrap; }
+.mark { display: flex; flex-direction: column; gap: 10px; flex: 1 1 300px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(40px, 9vw, 64px); line-height: 1; letter-spacing: -0.03em; }
+.tag { color: var(--muted); max-width: 44ch; font-weight: 500; }
+.bars { flex: 1 1 240px; max-width: 340px; height: 84px; display: flex; align-items: flex-end; gap: 3px; }
+.bar { flex: 1 1 0; min-width: 2px; background: var(--accent); border-radius: 2px 2px 0 0; }
+.bar.cut { background: var(--line); }
+
+/* sections */
+main { display: flex; flex-direction: column; gap: 56px; }
+section { display: flex; flex-direction: column; gap: 18px; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h2 { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: -0.02em; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 62ch; }
+h3 { font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+
+/* controls */
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+input[type="text"], input[type="search"] {
+  flex: 1 1 240px; min-width: 0; font: inherit; color: var(--ink); background: var(--panel);
+  border: 1.5px solid var(--line); border-radius: 12px; padding: 13px 15px;
+}
+input[type="text"]::placeholder { color: var(--muted); opacity: 0.8; }
+button { font: inherit; font-weight: 600; cursor: pointer; border-radius: 12px; border: 1.5px solid transparent; padding: 13px 20px; }
+.primary { background: var(--accent); color: var(--accent-ink); }
+.primary:hover { filter: brightness(1.08); }
+.secondary { background: transparent; color: var(--accent); border-color: var(--accent); }
+.secondary:disabled { color: var(--muted); border-color: var(--line); cursor: not-allowed; }
+.ghost { background: transparent; color: var(--muted); border-color: var(--line); padding: 8px 13px; font-size: 14px; border-radius: 10px; }
+.ghost:hover { color: var(--ink); border-color: var(--muted); }
+.ghost.danger:hover { color: var(--bad); border-color: var(--bad); }
+
+.note { font-size: 14.5px; color: var(--muted); border-left: 3px solid var(--line); padding: 2px 0 2px 12px; max-width: 64ch; }
+.note-warn { color: var(--warn); border-left-color: var(--warn); font-weight: 500; }
+.refine { display: flex; flex-direction: column; gap: 12px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 16px; padding: 18px; }
+.refine label { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chip { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 9px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
+.chip-example { color: var(--warn); border-color: var(--warn); }
+
+.groups { display: flex; flex-direction: column; gap: 22px; }
+.group { display: flex; flex-direction: column; gap: 10px; }
+.stores { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 10px; }
+.store { display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 14px; color: inherit; text-decoration: none; }
+.store:hover { border-color: var(--accent); }
+.store-name { font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.store-name::after { content: "\2197"; color: var(--accent); font-weight: 600; }
+.store-get { font-size: 13.5px; color: var(--muted); line-height: 1.4; }
+
+/* checker */
+.drop { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 34px 20px; border: 2px dashed var(--line); border-radius: 18px; background: var(--panel); cursor: pointer; }
+.drop:hover, .drop.over { border-color: var(--accent); }
+.drop strong { font-size: 17px; }
+.drop span { color: var(--muted); font-size: 14.5px; }
+.drop input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.drop:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+.results { display: flex; flex-direction: column; gap: 14px; }
+.result { display: flex; flex-direction: column; gap: 10px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 16px; padding: 18px; }
+.result-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.result-name { font-size: 16px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ink); overflow-wrap: anywhere; }
+.result-detail { color: var(--muted); max-width: 66ch; font-size: 15px; }
+.pill { font-size: 12.5px; font-weight: 700; letter-spacing: 0.03em; padding: 5px 11px 5px 9px; border-radius: 999px; border: 1.5px solid currentColor; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.pill-good { color: var(--good); } .pill-warn { color: var(--warn); } .pill-bad { color: var(--bad); }
+.pill-bad::before { border-radius: 1px; } .pill-warn::before { border-radius: 1px; transform: rotate(45deg); }
+.pill-info, .pill-wait { color: var(--muted); }
+.dj { display: flex; flex-wrap: wrap; gap: 10px 28px; padding: 12px 0 4px; border-top: 1.5px solid var(--line); }
+.dj-item { display: flex; flex-direction: column; gap: 1px; min-width: 150px; }
+.dj-label { font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+.dj-value { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.dj-alt { font-size: 13px; color: var(--muted); }
+.dj-item { gap: 4px; }
+.key-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cam { font-family: var(--display); font-weight: 700; font-size: 13px; padding: 2px 9px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+.staff { display: block; margin-top: 4px; overflow: visible; }
+.st-line { stroke: var(--muted); stroke-width: 1; opacity: .7; }
+.st-clef { font-family: "Noto Music", "Apple Symbols", "Segoe UI Symbol", serif; font-size: 50px; fill: var(--ink); }
+.st-thin { stroke: var(--ink); stroke-width: 1.2; fill: none; }
+.st-thick { stroke: var(--ink); stroke-width: 2.4; fill: none; }
+.st-flat { stroke: var(--ink); stroke-width: 1.5; fill: none; stroke-linejoin: round; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.facts li { padding: 3px 9px; border-radius: 8px; background: var(--paper); color: var(--ink); }
+canvas.spec { width: 100%; height: 150px; display: block; }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.legend figure { margin: 0; display: flex; flex-direction: column; gap: 6px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 16px 10px; }
+.legend figcaption { font-size: 14px; color: var(--muted); }
+.legend figcaption b { color: var(--ink); display: block; font-size: 15px; }
+.legend canvas.spec { height: 104px; }
+.fine { font-size: 13.5px; color: var(--muted); max-width: 70ch; }
+
+/* crate: big boxes, room to breathe */
+.sync { font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
+.sync::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.sync-ok { color: var(--good); } .sync-bad { color: var(--bad); }
+.count { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.crate-list { display: flex; flex-direction: column; }
+.track { display: flex; align-items: center; gap: 18px; padding: 22px 4px; border-bottom: 1.5px solid var(--line); flex-wrap: wrap; }
+.track:first-child { border-top: 1.5px solid var(--line); }
+.big-check { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 34px; height: 34px; margin: 0; border: 2.5px solid var(--muted); border-radius: 9px; background: var(--panel); cursor: pointer; position: relative; }
+.big-check:checked { background: var(--accent); border-color: var(--accent); }
+.big-check:checked::after { content: ""; position: absolute; left: 10px; top: 3px; width: 8px; height: 17px; border: solid var(--accent-ink); border-width: 0 3.5px 3.5px 0; transform: rotate(45deg); }
+.track-main { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 3px; cursor: pointer; }
+.track-title { font-weight: 600; font-size: 17px; overflow-wrap: anywhere; }
+.track.got .track-title { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.track-meta { font-size: 13.5px; color: var(--muted); }
+.track-acts { display: flex; gap: 8px; }
+.empty { color: var(--muted); padding: 26px 20px; border: 1.5px dashed var(--line); border-radius: 16px; max-width: 62ch; }
+footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--line); padding-top: 20px; max-width: 70ch; }
+@media (max-width: 480px) {
+  .wrap, main { gap: 44px; }
+  .top { padding-top: 28px; }
+  .bars { max-width: none; height: 60px; }
+  .row button { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .store, .drop, button, .big-check { transition: border-color .15s, background-color .15s, color .15s, filter .15s; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="mark">
+      <h1>clean crate</h1>
+      <p class="tag">Find the lossless copy. Check the files you already have. Keep the list in one place.</p>
+    </div>
+    <div class="bars" id="bars" aria-hidden="true"></div>
+  </header>
+
+  <main>
+    <section id="find" aria-labelledby="h-find">
+      <h2 id="h-find">Find a track</h2>
+      <p class="lede">Paste an Apple Music or SoundCloud link, or type the artist and title. You get direct searches on the stores that sell real lossless files, plus the free and physical routes.</p>
+      <form id="find-form" class="row" autocomplete="off">
+        <label class="sr" for="find-input">Link, or artist and title</label>
+        <input type="text" id="find-input" placeholder="https://soundcloud.com/artist/track  or  Artist - Title" inputmode="url" autocapitalize="off" spellcheck="false">
+        <button class="primary" type="submit" id="find-go">Find sources</button>
+      </form>
+      <p class="note" id="find-note" hidden></p>
+      <div class="refine" id="find-refine" hidden>
+        <label for="find-query">Searching for <span class="chip" id="find-source"></span></label>
+        <div class="row">
+          <input type="text" id="find-query" autocapitalize="off" spellcheck="false">
+          <button class="secondary" type="button" id="add-crate">Add to crate</button>
+        </div>
+      </div>
+      <div class="groups" id="find-result"></div>
+    </section>
+
+    <section id="check" aria-labelledby="h-check">
+      <h2 id="h-check">Check your files</h2>
+      <p class="lede">See whether a file is full-quality audio or a compressed stream saved in a bigger container, and get its tempo and key. The check runs on this device. Nothing is uploaded.</p>
+      <label class="drop" id="drop" for="file-input">
+        <strong>Drop audio files here, or tap to choose</strong>
+        <span>WAV, AIFF, FLAC, MP3 or M4A. Several at once is fine.</span>
+        <input type="file" id="file-input" multiple accept="audio/*,.wav,.aif,.aiff,.flac,.mp3,.m4a,.ogg,.opus">
+      </label>
+      <div class="results" id="check-results" aria-live="polite"></div>
+      <h3 id="check-empty">How to read a result</h3>
+      <div class="legend">
+        <figure>
+          <canvas class="spec" id="ref-full" role="img" aria-label="Illustration: frequency content sloping gently all the way to 22 kilohertz"></canvas>
+          <figcaption><b>Lossless</b>Content tapers off naturally and reaches the top of the range. Illustration.</figcaption>
+        </figure>
+        <figure>
+          <canvas class="spec" id="ref-lossy" role="img" aria-label="Illustration: frequency content that stops dead at 16 kilohertz"></canvas>
+          <figcaption><b>Lossy source</b>Content stops dead at a wall. The encoder threw the rest away. Illustration.</figcaption>
+        </figure>
+      </div>
+      <p class="fine">Limits: this finds the cutoff that MP3 and most AAC encoders leave. High-bitrate AAC, about 256 kbps, sometimes leaves no visible cutoff and can pass. A pass means consistent with lossless. Where the file came from is still the best evidence.</p>
+      <p class="fine">Tempo and key are estimates. Tempo is reported between 88 and 176 BPM, with the half or double reading beside it when that is plausible. Keys show in standard notation (name and key signature) and Camelot. The usual miss is the relative major or minor, which shares the same Camelot number and signature, and still mixes.</p>
+    </section>
+
+    <section id="crate" aria-labelledby="h-crate">
+      <div class="sec-head">
+        <h2 id="h-crate">Your crate</h2>
+        <span class="sync sync-local" id="sync">Saved on this device only</span>
+      </div>
+      <p class="count" id="crate-count"></p>
+      <ul class="crate-list" id="crate-list"></ul>
+      <p class="empty" id="crate-empty">Nothing here yet. Find a track above and choose Add to crate. Tick the box once the file is in your library.</p>
+      <div class="row"><button class="ghost" type="button" id="copy-list" hidden>Copy list</button></div>
+    </section>
+  </main>
+
+  <footer>Clean Crate points you to places that sell or give away files you can keep. It does not download from streaming services.</footer>
+</div>
+<script>
+/*CORE*/
+</script>
+<script>
+/*APP*/
+</script>
+</body>
+</html>

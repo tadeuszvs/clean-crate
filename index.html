@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clean Crate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Music&amp;text=%F0%9D%84%9E&amp;display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;700&amp;family=Montserrat:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one calm column. The only loud thing is the header spectrum that runs into a wall. */
+:root {
+  --paper: #F2F0F7;
+  --panel: #FFFFFF;
+  --ink: #1C1730;
+  --muted: #655F7C;
+  --line: #DAD5E6;
+  --accent: #3A38E8;
+  --accent-ink: #FFFFFF;
+  --good: #17794C;
+  --warn: #9A6410;
+  --bad: #C02A45;
+  --display: "Comfortaa", "Montserrat", system-ui, sans-serif;
+  --body: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #13101E; --panel: #1C182D; --ink: #ECE9F6; --muted: #A49EBB; --line: #332D4B;
+    --accent: #918EFF; --accent-ink: #13101E; --good: #52C990; --warn: #E3AC52; --bad: #F2708A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #13101E; --panel: #1C182D; --ink: #ECE9F6; --muted: #A49EBB; --line: #332D4B;
+  --accent: #918EFF; --accent-ink: #13101E; --good: #52C990; --warn: #E3AC52; --bad: #F2708A;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.55; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 0 20px 72px; display: flex; flex-direction: column; gap: 56px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+h1, h2, h3, p, ul { margin: 0; }
+ul { padding: 0; list-style: none; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+
+/* header */
+.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; padding-top: 44px; flex-wrap: wrap; }
+.mark { display: flex; flex-direction: column; gap: 10px; flex: 1 1 300px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(40px, 9vw, 64px); line-height: 1; letter-spacing: -0.03em; }
+.tag { color: var(--muted); max-width: 44ch; font-weight: 500; }
+.bars { flex: 1 1 240px; max-width: 340px; height: 84px; display: flex; align-items: flex-end; gap: 3px; }
+.bar { flex: 1 1 0; min-width: 2px; background: var(--accent); border-radius: 2px 2px 0 0; }
+.bar.cut { background: var(--line); }
+
+/* sections */
+main { display: flex; flex-direction: column; gap: 56px; }
+section { display: flex; flex-direction: column; gap: 18px; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h2 { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: -0.02em; text-wrap: balance; }
+.lede { color: var(--muted); max-width: 62ch; }
+h3 { font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+
+/* controls */
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+input[type="text"], input[type="search"] {
+  flex: 1 1 240px; min-width: 0; font: inherit; color: var(--ink); background: var(--panel);
+  border: 1.5px solid var(--line); border-radius: 12px; padding: 13px 15px;
+}
+input[type="text"]::placeholder { color: var(--muted); opacity: 0.8; }
+button { font: inherit; font-weight: 600; cursor: pointer; border-radius: 12px; border: 1.5px solid transparent; padding: 13px 20px; }
+.primary { background: var(--accent); color: var(--accent-ink); }
+.primary:hover { filter: brightness(1.08); }
+.secondary { background: transparent; color: var(--accent); border-color: var(--accent); }
+.secondary:disabled { color: var(--muted); border-color: var(--line); cursor: not-allowed; }
+.ghost { background: transparent; color: var(--muted); border-color: var(--line); padding: 8px 13px; font-size: 14px; border-radius: 10px; }
+.ghost:hover { color: var(--ink); border-color: var(--muted); }
+.ghost.danger:hover { color: var(--bad); border-color: var(--bad); }
+
+.note { font-size: 14.5px; color: var(--muted); border-left: 3px solid var(--line); padding: 2px 0 2px 12px; max-width: 64ch; }
+.note-warn { color: var(--warn); border-left-color: var(--warn); font-weight: 500; }
+.refine { display: flex; flex-direction: column; gap: 12px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 16px; padding: 18px; }
+.refine label { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chip { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 9px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
+.chip-example { color: var(--warn); border-color: var(--warn); }
+
+.groups { display: flex; flex-direction: column; gap: 22px; }
+.group { display: flex; flex-direction: column; gap: 10px; }
+.stores { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 10px; }
+.store { display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 14px; color: inherit; text-decoration: none; }
+.store:hover { border-color: var(--accent); }
+.store-name { font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.store-name::after { content: "\2197"; color: var(--accent); font-weight: 600; }
+.store-get { font-size: 13.5px; color: var(--muted); line-height: 1.4; }
+
+/* checker */
+.drop { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 34px 20px; border: 2px dashed var(--line); border-radius: 18px; background: var(--panel); cursor: pointer; }
+.drop:hover, .drop.over { border-color: var(--accent); }
+.drop strong { font-size: 17px; }
+.drop span { color: var(--muted); font-size: 14.5px; }
+.drop input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.drop:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+.results { display: flex; flex-direction: column; gap: 14px; }
+.result { display: flex; flex-direction: column; gap: 10px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 16px; padding: 18px; }
+.result-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.result-name { font-size: 16px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ink); overflow-wrap: anywhere; }
+.result-detail { color: var(--muted); max-width: 66ch; font-size: 15px; }
+.pill { font-size: 12.5px; font-weight: 700; letter-spacing: 0.03em; padding: 5px 11px 5px 9px; border-radius: 999px; border: 1.5px solid currentColor; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.pill-good { color: var(--good); } .pill-warn { color: var(--warn); } .pill-bad { color: var(--bad); }
+.pill-bad::before { border-radius: 1px; } .pill-warn::before { border-radius: 1px; transform: rotate(45deg); }
+.pill-info, .pill-wait { color: var(--muted); }
+.dj { display: flex; flex-wrap: wrap; gap: 10px 28px; padding: 12px 0 4px; border-top: 1.5px solid var(--line); }
+.dj-item { display: flex; flex-direction: column; gap: 1px; min-width: 150px; }
+.dj-label { font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+.dj-value { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.dj-alt { font-size: 13px; color: var(--muted); }
+.dj-item { gap: 4px; }
+.key-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cam { font-family: var(--display); font-weight: 700; font-size: 13px; padding: 2px 9px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+.staff { display: block; margin-top: 4px; overflow: visible; }
+.st-line { stroke: var(--muted); stroke-width: 1; opacity: .7; }
+.st-clef { font-family: "Noto Music", "Apple Symbols", "Segoe UI Symbol", serif; font-size: 50px; fill: var(--ink); }
+.st-thin { stroke: var(--ink); stroke-width: 1.2; fill: none; }
+.st-thick { stroke: var(--ink); stroke-width: 2.4; fill: none; }
+.st-flat { stroke: var(--ink); stroke-width: 1.5; fill: none; stroke-linejoin: round; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.facts li { padding: 3px 9px; border-radius: 8px; background: var(--paper); color: var(--ink); }
+canvas.spec { width: 100%; height: 150px; display: block; }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.legend figure { margin: 0; display: flex; flex-direction: column; gap: 6px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 16px 10px; }
+.legend figcaption { font-size: 14px; color: var(--muted); }
+.legend figcaption b { color: var(--ink); display: block; font-size: 15px; }
+.legend canvas.spec { height: 104px; }
+.fine { font-size: 13.5px; color: var(--muted); max-width: 70ch; }
+
+/* crate: big boxes, room to breathe */
+.sync { font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
+.sync::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.sync-ok { color: var(--good); } .sync-bad { color: var(--bad); }
+.count { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.crate-list { display: flex; flex-direction: column; }
+.track { display: flex; align-items: center; gap: 18px; padding: 22px 4px; border-bottom: 1.5px solid var(--line); flex-wrap: wrap; }
+.track:first-child { border-top: 1.5px solid var(--line); }
+.big-check { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 34px; height: 34px; margin: 0; border: 2.5px solid var(--muted); border-radius: 9px; background: var(--panel); cursor: pointer; position: relative; }
+.big-check:checked { background: var(--accent); border-color: var(--accent); }
+.big-check:checked::after { content: ""; position: absolute; left: 10px; top: 3px; width: 8px; height: 17px; border: solid var(--accent-ink); border-width: 0 3.5px 3.5px 0; transform: rotate(45deg); }
+.track-main { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 3px; cursor: pointer; }
+.track-title { font-weight: 600; font-size: 17px; overflow-wrap: anywhere; }
+.track.got .track-title { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.track-meta { font-size: 13.5px; color: var(--muted); }
+.track-acts { display: flex; gap: 8px; }
+.empty { color: var(--muted); padding: 26px 20px; border: 1.5px dashed var(--line); border-radius: 16px; max-width: 62ch; }
+footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--line); padding-top: 20px; max-width: 70ch; }
+@media (max-width: 480px) {
+  .wrap, main { gap: 44px; }
+  .top { padding-top: 28px; }
+  .bars { max-width: none; height: 60px; }
+  .row button { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .store, .drop, button, .big-check { transition: border-color .15s, background-color .15s, color .15s, filter .15s; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="mark">
+      <h1>clean crate</h1>
+      <p class="tag">Find the lossless copy. Check the files you already have. Keep the list in one place.</p>
+    </div>
+    <div class="bars" id="bars" aria-hidden="true"></div>
+  </header>
+
+  <main>
+    <section id="find" aria-labelledby="h-find">
+      <h2 id="h-find">Find a track</h2>
+      <p class="lede">Paste an Apple Music or SoundCloud link, or type the artist and title. You get direct searches on the stores that sell real lossless files, plus the free and physical routes.</p>
+      <form id="find-form" class="row" autocomplete="off">
+        <label class="sr" for="find-input">Link, or artist and title</label>
+        <input type="text" id="find-input" placeholder="https://soundcloud.com/artist/track  or  Artist - Title" inputmode="url" autocapitalize="off" spellcheck="false">
+        <button class="primary" type="submit" id="find-go">Find sources</button>
+      </form>
+      <p class="note" id="find-note" hidden></p>
+      <div class="refine" id="find-refine" hidden>
+        <label for="find-query">Searching for <span class="chip" id="find-source"></span></label>
+        <div class="row">
+          <input type="text" id="find-query" autocapitalize="off" spellcheck="false">
+          <button class="secondary" type="button" id="add-crate">Add to crate</button>
+        </div>
+      </div>
+      <div class="groups" id="find-result"></div>
+    </section>
+
+    <section id="check" aria-labelledby="h-check">
+      <h2 id="h-check">Check your files</h2>
+      <p class="lede">See whether a file is full-quality audio or a compressed stream saved in a bigger container, and get its tempo and key. The check runs on this device. Nothing is uploaded.</p>
+      <label class="drop" id="drop" for="file-input">
+        <strong>Drop audio files here, or tap to choose</strong>
+        <span>WAV, AIFF, FLAC, MP3 or M4A. Several at once is fine.</span>
+        <input type="file" id="file-input" multiple accept="audio/*,.wav,.aif,.aiff,.flac,.mp3,.m4a,.ogg,.opus">
+      </label>
+      <div class="results" id="check-results" aria-live="polite"></div>
+      <h3 id="check-empty">How to read a result</h3>
+      <div class="legend">
+        <figure>
+          <canvas class="spec" id="ref-full" role="img" aria-label="Illustration: frequency content sloping gently all the way to 22 kilohertz"></canvas>
+          <figcaption><b>Lossless</b>Content tapers off naturally and reaches the top of the range. Illustration.</figcaption>
+        </figure>
+        <figure>
+          <canvas class="spec" id="ref-lossy" role="img" aria-label="Illustration: frequency content that stops dead at 16 kilohertz"></canvas>
+          <figcaption><b>Lossy source</b>Content stops dead at a wall. The encoder threw the rest away. Illustration.</figcaption>
+        </figure>
+      </div>
+      <p class="fine">Limits: this finds the cutoff that MP3 and most AAC encoders leave. High-bitrate AAC, about 256 kbps, sometimes leaves no visible cutoff and can pass. A pass means consistent with lossless. Where the file came from is still the best evidence.</p>
+      <p class="fine">Tempo and key are estimates. Tempo is reported between 88 and 176 BPM, with the half or double reading beside it when that is plausible. Keys show in standard notation (name and key signature) and Camelot. The usual miss is the relative major or minor, which shares the same Camelot number and signature, and still mixes.</p>
+    </section>
+
+    <section id="crate" aria-labelledby="h-crate">
+      <div class="sec-head">
+        <h2 id="h-crate">Your crate</h2>
+        <span class="sync sync-local" id="sync">Saved on this device only</span>
+      </div>
+      <p class="count" id="crate-count"></p>
+      <ul class="crate-list" id="crate-list"></ul>
+      <p class="empty" id="crate-empty">Nothing here yet. Find a track above and choose Add to crate. Tick the box once the file is in your library.</p>
+      <div class="row"><button class="ghost" type="button" id="copy-list" hidden>Copy list</button></div>
+    </section>
+  </main>
+
+  <footer>Clean Crate points you to places that sell or give away files you can keep. It does not download from streaming services.</footer>
+</div>
+<script>
+/* Clean Crate core: pure functions, no DOM. Shared by the page and the tests. */
+(function (root) {
+  'use strict';
+  var C = {};
+
+  /* ---------- link parsing ---------- */
+  var NOISE = /\b(official|free\s*download|free\s*dl|premiere|out\s*now)\b/gi;
+  function tidy(s) {
+    return String(s || '').replace(/[-_+]+/g, ' ').replace(NOISE, ' ').replace(/\s+/g, ' ').trim();
+  }
+  function dec(p) { try { return decodeURIComponent(p); } catch (e) { return p; } }
+
+  C.parseInput = function (raw) {
+    var text = String(raw || '').trim();
+    if (!text) return { ok: false, note: 'Paste a link or type an artist and title.' };
+    var url = null;
+    try {
+      if (/^https?:\/\//i.test(text)) url = new URL(text);
+      else if (/^[\w-]+(\.[\w-]+)+\/\S*$/i.test(text)) url = new URL('https://' + text);
+    } catch (e) { url = null; }
+    if (!url) return { ok: true, source: 'Typed', query: text.replace(/\s+/g, ' '), note: '' };
+
+    var host = url.hostname.replace(/^(www|m)\./, '').toLowerCase();
+    var parts = url.pathname.split('/').filter(Boolean).map(dec);
+    var needText = function (name) {
+      return { ok: false, source: name, url: url.href, note: name + ' links do not include the track name. Type the artist and title instead.' };
+    };
+
+    if (host === 'music.apple.com' || host === 'geo.music.apple.com') {
+      var kind = parts[1], slug = parts[2];
+      if ((kind === 'album' || kind === 'song' || kind === 'music-video') && slug && !/^\d+$/.test(slug)) {
+        var q = tidy(slug).replace(/\s(single|ep)$/i, '');
+        return { ok: true, source: 'Apple Music', url: url.href, query: q,
+          note: 'Apple Music links carry the title but not the artist. Add the artist name for better matches.' };
+      }
+      if (kind === 'playlist') return { ok: false, source: 'Apple Music', url: url.href, note: 'That is a playlist link. Paste one track or album at a time.' };
+      return needText('This kind of Apple Music');
+    }
+    if (host === 'soundcloud.com') {
+      if (parts.length >= 2 && parts[1] !== 'sets' && parts[0] !== 'search' && parts[0] !== 'discover') {
+        return { ok: true, source: 'SoundCloud', url: url.href, query: (tidy(parts[0]) + ' ' + tidy(parts[1])).trim(),
+          note: 'SoundCloud handles do not always match the artist name. Edit the search if it looks off.' };
+      }
+      if (parts[1] === 'sets') return { ok: false, source: 'SoundCloud', url: url.href, note: 'That is a playlist link. Paste one track at a time.' };
+      return needText('This kind of SoundCloud');
+    }
+    if (/\.bandcamp\.com$/.test(host) && (parts[0] === 'track' || parts[0] === 'album') && parts[1]) {
+      return { ok: true, source: 'Bandcamp', url: url.href, query: (tidy(host.replace('.bandcamp.com', '')) + ' ' + tidy(parts[1])).trim(),
+        note: 'This is already a Bandcamp page, so you can buy the lossless download there directly.' };
+    }
+    if (host === 'beatport.com' && parts[0] === 'track' && parts[1]) {
+      return { ok: true, source: 'Beatport', url: url.href, query: tidy(parts[1]), note: '' };
+    }
+    if (host === 'open.spotify.com' || host === 'spotify.link') return needText('Spotify');
+    if (host === 'youtube.com' || host === 'youtu.be' || host === 'music.youtube.com') return needText('YouTube');
+    if (host === 'on.soundcloud.com' || host === 'soundcloud.app.goo.gl') return needText('Short SoundCloud');
+    return needText('These');
+  };
+
+  C.stores = function (query, parsed) {
+    var e = encodeURIComponent(query);
+    var free = [
+      { name: 'SoundCloud', get: 'Look for a Download button or a free-download link', url: 'https://soundcloud.com/search/sounds?q=' + e },
+      { name: 'Free Music Archive', get: 'Creative Commons tracks', url: 'https://freemusicarchive.org/search?quicksearch=' + e }
+    ];
+    if (parsed && parsed.source === 'SoundCloud' && parsed.url) {
+      free.unshift({ name: 'Open the track you pasted', get: 'Check under the waveform for Download, and the description for a free-download link', url: parsed.url });
+    }
+    return [
+      { group: 'Buy a lossless download', items: [
+        { name: 'Bandcamp', get: 'WAV, AIFF or FLAC', url: 'https://bandcamp.com/search?q=' + e + '&item_type=t' },
+        { name: 'Beatport', get: 'Lossless option at checkout', url: 'https://www.beatport.com/search?q=' + e },
+        { name: 'Traxsource', get: 'Lossless option at checkout', url: 'https://www.traxsource.com/search?term=' + e },
+        { name: 'Juno Download', get: 'WAV or FLAC', url: 'https://www.junodownload.com/search/?q%5Ball%5D%5B%5D=' + e },
+        { name: 'Qobuz', get: 'FLAC, CD quality or hi-res', url: 'https://www.qobuz.com/us-en/search?q=' + e }
+      ] },
+      { group: 'Free, where the artist allows it', items: free },
+      { group: 'Physical copies to rip yourself', items: [
+        { name: 'Discogs', get: 'Used CDs and vinyl', url: 'https://www.discogs.com/search/?q=' + e + '&type=release' }
+      ] },
+      { group: 'Only know the title?', items: [
+        { name: 'MusicBrainz', get: 'Every recording with that title, listed with its artist', url: 'https://musicbrainz.org/search?query=' + e + '&type=recording&method=indexed' }
+      ] },
+      { group: 'For sampling', items: [
+        { name: 'WhoSampled', get: 'Where a track has been sampled, and from what', url: 'https://www.whosampled.com/search/?q=' + e },
+        { name: 'Tracklib', get: 'Records with clearance built in (search on the site)', url: 'https://www.tracklib.com/' }
+      ] }
+    ];
+  };
+
+  /* ---------- container parsing ---------- */
+  function str(dv, o, n) { var s = ''; for (var i = 0; i < n; i++) s += String.fromCharCode(dv.getUint8(o + i)); return s; }
+
+  C.parseWav = function (buf) {
+    var dv = new DataView(buf);
+    if (dv.byteLength < 44 || str(dv, 0, 4) !== 'RIFF' || str(dv, 8, 4) !== 'WAVE') return null;
+    var o = 12, fmt = null, data = null;
+    while (o + 8 <= dv.byteLength) {
+      var id = str(dv, o, 4), size = dv.getUint32(o + 4, true), body = o + 8;
+      if (id === 'fmt ' && size >= 16) {
+        var tag = dv.getUint16(body, true);
+        if (tag === 0xFFFE && size >= 26) tag = dv.getUint16(body + 24, true);
+        fmt = { tag: tag, ch: dv.getUint16(body + 2, true), sr: dv.getUint32(body + 4, true), align: dv.getUint16(body + 12, true), bits: dv.getUint16(body + 14, true) };
+      } else if (id === 'data') {
+        if (size === 0 || size > dv.byteLength - body) size = dv.byteLength - body;
+        data = { offset: body, size: size };
+        break;
+      }
+      o = body + size + (size & 1);
+    }
+    if (!fmt || !data || !fmt.ch || !fmt.align || !fmt.sr) return null;
+    if (fmt.tag !== 1 && fmt.tag !== 3) return null;
+    var bytes = fmt.align / fmt.ch;
+    if ([1, 2, 3, 4, 8].indexOf(bytes) < 0) return null;
+    return { container: 'WAV', lossless: true, sampleRate: fmt.sr, channels: fmt.ch, bits: fmt.bits, float: fmt.tag === 3,
+      littleEndian: true, signed8: false, offset: data.offset, frames: Math.floor(data.size / fmt.align), blockAlign: fmt.align, bytes: bytes };
+  };
+
+  function ext80(dv, o) {
+    var exp = ((dv.getUint8(o) & 0x7F) << 8 | dv.getUint8(o + 1)) - 16383;
+    return dv.getUint32(o + 2) * Math.pow(2, exp - 31) + dv.getUint32(o + 6) * Math.pow(2, exp - 63);
+  }
+
+  C.parseAiff = function (buf) {
+    var dv = new DataView(buf);
+    if (dv.byteLength < 54 || str(dv, 0, 4) !== 'FORM') return null;
+    var form = str(dv, 8, 4);
+    if (form !== 'AIFF' && form !== 'AIFC') return null;
+    var o = 12, comm = null, ssnd = null;
+    while (o + 8 <= dv.byteLength) {
+      var id = str(dv, o, 4), size = dv.getUint32(o + 4), body = o + 8;
+      if (id === 'COMM' && size >= 18) {
+        comm = { ch: dv.getInt16(body), frames: dv.getUint32(body + 2), bits: dv.getInt16(body + 6), sr: ext80(dv, body + 8), comp: 'NONE' };
+        if (form === 'AIFC' && size >= 22) comm.comp = str(dv, body + 18, 4);
+      } else if (id === 'SSND') {
+        var off = dv.getUint32(body);
+        ssnd = { offset: body + 8 + off, size: Math.min(size - 8 - off, dv.byteLength - (body + 8 + off)) };
+      }
+      if (comm && ssnd) break;
+      o = body + size + (size & 1);
+    }
+    if (!comm || !ssnd || !comm.ch || !comm.sr) return null;
+    var c = comm.comp, isFloat = (c === 'fl32' || c === 'FL32' || c === 'fl64' || c === 'FL64');
+    if (c !== 'NONE' && c !== 'sowt' && c !== 'twos' && !isFloat) return null;
+    var bytes = Math.ceil(comm.bits / 8);
+    if ([1, 2, 3, 4, 8].indexOf(bytes) < 0) return null;
+    var align = bytes * comm.ch;
+    return { container: 'AIFF', lossless: true, sampleRate: Math.round(comm.sr), channels: comm.ch, bits: comm.bits, float: isFloat,
+      littleEndian: c === 'sowt', signed8: true, offset: ssnd.offset, frames: Math.min(comm.frames, Math.floor(ssnd.size / align)), blockAlign: align, bytes: bytes };
+  };
+
+  /* Returns (startFrame, N) => Float32Array of mono samples in [-1, 1]. */
+  C.pcmReader = function (buf, p) {
+    var dv = new DataView(buf), le = p.littleEndian;
+    function sample(o) {
+      switch (p.bytes) {
+        case 1: return p.signed8 ? dv.getInt8(o) / 128 : (dv.getUint8(o) - 128) / 128;
+        case 2: return dv.getInt16(o, le) / 32768;
+        case 3: {
+          var b0 = dv.getUint8(o), b1 = dv.getUint8(o + 1), b2 = dv.getUint8(o + 2);
+          var v = le ? (b2 << 16 | b1 << 8 | b0) : (b0 << 16 | b1 << 8 | b2);
+          if (v & 0x800000) v -= 0x1000000;
+          return v / 8388608;
+        }
+        case 4: return p.float ? dv.getFloat32(o, le) : dv.getInt32(o, le) / 2147483648;
+        default: return dv.getFloat64(o, le);
+      }
+    }
+    return function (start, N) {
+      var out = new Float32Array(N);
+      for (var i = 0; i < N; i++) {
+        var f = start + i;
+        if (f >= p.frames) break;
+        var base = p.offset + f * p.blockAlign, s = 0;
+        for (var c = 0; c < p.channels; c++) s += sample(base + c * p.bytes);
+        out[i] = s / p.channels;
+      }
+      return out;
+    };
+  };
+
+  function hasBytes(u8, word, from, to) {
+    var a = word.charCodeAt(0), b = word.charCodeAt(1), c = word.charCodeAt(2), d = word.charCodeAt(3);
+    for (var i = Math.max(0, from); i < Math.min(u8.length - 3, to); i++) {
+      if (u8[i] === a && u8[i + 1] === b && u8[i + 2] === c && u8[i + 3] === d) return true;
+    }
+    return false;
+  }
+
+  /* Identify compressed containers from their first bytes. */
+  C.sniff = function (buf, name) {
+    var u8 = new Uint8Array(buf), dv = new DataView(buf);
+    var ext = (String(name || '').match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
+    if (u8.length > 26 && str(dv, 0, 4) === 'fLaC') {
+      var b18 = u8[18], b19 = u8[19], b20 = u8[20], b21 = u8[21];
+      return { container: 'FLAC', lossless: true, sampleRate: (b18 << 12) | (b19 << 4) | (b20 >> 4), channels: ((b20 >> 1) & 7) + 1, bits: (((b20 & 1) << 4) | (b21 >> 4)) + 1 };
+    }
+    if (u8.length > 12 && str(dv, 4, 4) === 'ftyp') {
+      var span = 3 * 1024 * 1024;
+      var alac = hasBytes(u8, 'alac', 0, span) || hasBytes(u8, 'alac', u8.length - span, u8.length);
+      return alac ? { container: 'ALAC', lossless: true } : { container: 'AAC', lossless: false };
+    }
+    if (u8.length > 4 && str(dv, 0, 4) === 'OggS') return { container: 'Ogg', lossless: false };
+    if (u8.length > 3 && (str(dv, 0, 3) === 'ID3' || (u8[0] === 0xFF && (u8[1] & 0xE0) === 0xE0))) return { container: 'MP3', lossless: false };
+    if (ext === 'mp3') return { container: 'MP3', lossless: false };
+    if (ext === 'm4a' || ext === 'aac' || ext === 'mp4') return { container: 'AAC', lossless: false };
+    if (ext === 'ogg' || ext === 'opus') return { container: 'Ogg', lossless: false };
+    return { container: ext ? ext.toUpperCase() : 'Audio', lossless: null };
+  };
+
+  /* ---------- spectrum ---------- */
+  C.fft = function (re, im) {
+    var n = re.length, i, j, t;
+    for (i = 1, j = 0; i < n; i++) {
+      var bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) { t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+    }
+    for (var len = 2; len <= n; len <<= 1) {
+      var ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang), h = len >> 1;
+      for (i = 0; i < n; i += len) {
+        var cr = 1, ci = 0;
+        for (var k = 0; k < h; k++) {
+          var a = i + k, b = a + h;
+          var xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
+          re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+          t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+        }
+      }
+    }
+  };
+
+  /* Average power spectrum over `count` Hann windows spread across the track. 0 dB = full-scale sine. */
+  C.averageSpectrum = function (getFrame, total, N, count) {
+    var half = N / 2, acc = new Float64Array(half), re = new Float64Array(N), im = new Float64Array(N), win = new Float64Array(N), i, k;
+    for (i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+    var used = 0, span = Math.max(0, total - N);
+    for (var w = 0; w < count; w++) {
+      var pos = count === 1 ? 0 : Math.floor(span * (0.08 + 0.84 * w / (count - 1)));
+      var fr = getFrame(pos, N), e = 0;
+      for (i = 0; i < N; i++) e += fr[i] * fr[i];
+      if (Math.sqrt(e / N) < 0.0005) continue;
+      for (i = 0; i < N; i++) { re[i] = fr[i] * win[i]; im[i] = 0; }
+      C.fft(re, im);
+      for (k = 0; k < half; k++) acc[k] += re[k] * re[k] + im[k] * im[k];
+      used++;
+    }
+    var db = new Float64Array(half), norm = N * N / 16;
+    for (k = 0; k < half; k++) {
+      var p = used ? acc[k] / used : 0;
+      db[k] = p > 0 ? Math.max(-170, 10 * Math.log10(p / norm)) : -170;
+    }
+    return { db: db, used: used };
+  };
+
+  /* Find the highest brick-wall drop: the mark an encoder's low-pass leaves. Returns {freq, drop} or null. */
+  C.detectWall = function (db, sr) {
+    var half = db.length, nyq = sr / 2, hz = nyq / half, k;
+    var pre = new Float64Array(half + 1);
+    for (k = 0; k < half; k++) pre[k + 1] = pre[k] + db[k];
+    function mean(f1, f2) {
+      var a = Math.max(0, Math.round(f1 / hz)), b = Math.min(half, Math.round(f2 / hz));
+      if (b <= a) b = Math.min(half, a + 1);
+      return (pre[b] - pre[a]) / (b - a);
+    }
+    var ref = mean(1000, 5000), top = nyq - 1000, hits = [];
+    for (var f = 8000; f <= top; f += Math.max(hz, 25)) {
+      var below = mean(f - 1000, f - 300), above = mean(f + 300, f + 1000), rest = mean(f + 300, nyq - 150);
+      var drop = below - above;
+      if (drop >= 18 && below - rest >= 18 && below > ref - 70) hits.push({ freq: f, drop: drop });
+    }
+    if (!hits.length) return null;
+    var best = hits[hits.length - 1], topF = best.freq;
+    for (k = 0; k < hits.length; k++) if (hits[k].freq >= topF - 1500 && hits[k].drop > best.drop) best = hits[k];
+    return { freq: best.freq, drop: best.drop };
+  };
+
+  function khz(f) { return (f / 1000).toFixed(1) + ' kHz'; }
+
+  /* Turn the measurements into a plain verdict. tone: good | warn | bad | info */
+  C.verdict = function (info, wall, sr) {
+    var f = wall ? wall.freq : null;
+    var guess = f === null ? '' : f < 16500 ? 'a low-bitrate encode, around 128 kbps or below' : f < 19400 ? 'a mid-bitrate encode, around 160 to 192 kbps' : 'a high-bitrate MP3 or AAC, around 256 to 320 kbps';
+    var lossyWall = f !== null && f < 20900;
+    if (info.lossless === false) {
+      if (lossyWall) return { tone: f < 19400 ? 'bad' : 'warn', label: 'Lossy format', detail: info.container + ' is a lossy format. Content stops at ' + khz(f) + ', typical of ' + guess + '.' };
+      return { tone: 'warn', label: 'Lossy format', detail: info.container + ' is a lossy format. No cutoff below 21 kHz, so it is a high-bitrate encode.' };
+    }
+    var wrap = info.lossless ? 'a lossless wrapper' : 'this file';
+    if (lossyWall) {
+      return { tone: 'bad', label: 'Lossy source inside', detail: 'Content stops at ' + khz(f) + ', typical of ' + guess + '. This looks like lossy audio saved in ' + wrap + '. Converting did not bring the missing detail back.' };
+    }
+    if (f !== null && sr > 50000 && f < 25500) {
+      return { tone: 'warn', label: 'Upsampled', detail: 'Content stops near ' + khz(f) + ', so this was made from CD-rate audio and is not true hi-res. That is fine if the source was lossless.' };
+    }
+    return { tone: 'good', label: 'Full bandwidth', detail: 'No encoder cutoff found. This is consistent with lossless. Some high-bitrate AAC also looks like this, so read it as a pass, not proof.' };
+  };
+
+  /* ---------- tempo ---------- */
+  /* Spectral-flux onset envelope, autocorrelation with a comb, then refinement at 8x the beat period. */
+  C.tempo = function (getFrame, total, sr) {
+    var N = sr > 50000 ? 2048 : 1024, hop = N / 2, half = N / 2, rate = sr / hop, i, k, t;
+    var frames = Math.floor(Math.min(total, sr * 100) / hop) - 2;
+    if (frames < rate * 8) return null;
+    var start = Math.max(0, Math.floor((total - (frames + 2) * hop) / 2));
+    var win = new Float64Array(N); for (i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+    var re = new Float64Array(N), im = new Float64Array(N), prev = new Float64Array(half), flux = new Float64Array(frames);
+    var level = 0, rise = 0;
+    for (t = 0; t < frames; t++) {
+      var fr = getFrame(start + t * hop, N), s = 0;
+      for (i = 0; i < N; i++) { re[i] = fr[i] * win[i]; im[i] = 0; }
+      C.fft(re, im);
+      for (k = 1; k < half; k++) {
+        var m = Math.log(1 + 100 * Math.sqrt(re[k] * re[k] + im[k] * im[k]));
+        if (m > prev[k]) s += m - prev[k];
+        prev[k] = m; level += m;
+      }
+      flux[t] = t ? s : 0; rise += flux[t];
+    }
+    if (!(level > 0) || rise / level < 0.004) return null;   // no real onsets: a drone, a tone, silence
+    var w = Math.round(rate * 0.5), env = new Float64Array(frames), run = 0, e0 = 0;
+    for (t = 0; t < frames; t++) {
+      run += flux[t]; if (t >= w) run -= flux[t - w];
+      var v = flux[t] - run / Math.min(t + 1, w);
+      env[t] = v > 0 ? v : 0; e0 += env[t] * env[t];
+    }
+    if (e0 <= 0) return null;
+    /* Autocorrelation of the mean-removed envelope, so audio with no repeating pulse sits near zero. */
+    var zm = 0; for (t = 0; t < frames; t++) zm += env[t]; zm /= frames;
+    var z = new Float64Array(frames); e0 = 0;
+    for (t = 0; t < frames; t++) { z[t] = env[t] - zm; e0 += z[t] * z[t]; }
+    if (e0 <= 0) return null;
+    var maxLag = Math.min(Math.floor(frames / 2), Math.ceil(rate * 60 / 65 * 8) + 6), ac = new Float64Array(maxLag + 2);
+    for (var lag = 1; lag <= maxLag + 1; lag++) {
+      var sum = 0; for (t = lag; t < frames; t++) sum += z[t] * z[t - lag];
+      ac[lag] = sum / e0 * frames / (frames - lag);
+    }
+    function at(l) { var a = Math.floor(l); if (a + 1 > maxLag) return 0; return ac[a] + (ac[a + 1] - ac[a]) * (l - a); }
+    /* Score each tempo by how much onset energy lands on its beat grid (best phase), with a DJ-leaning prior. */
+    function grid(l) {
+      var top = 0, phases = Math.ceil(l);
+      for (var ph = 0; ph < phases; ph++) {
+        var sum = 0, n = 0;
+        for (var p = ph; p < frames - 1; p += l) {
+          var q = Math.round(p), v = env[q];
+          if (q > 0 && env[q - 1] > v) v = env[q - 1];
+          if (env[q + 1] > v) v = env[q + 1];
+          sum += v; n++;
+        }
+        if (n && sum / n > top) top = sum / n;
+      }
+      return top;
+    }
+    var best = null, envMean = 0;
+    for (t = 0; t < frames; t++) envMean += env[t];
+    envMean /= frames;
+    /* Search one octave only (88 to 176, the usual DJ window) so half and double time cannot compete; the other reading is reported as alt. */
+    for (var bpm = 88; bpm < 176; bpm += 0.5) {
+      var l = rate * 60 / bpm;
+      var score = grid(l) / (envMean || 1) * (0.5 + 0.5 * Math.max(0, at(l)));
+      if (!best || score > best.score) best = { score: score, lag: l };
+    }
+    if (!best || best.score < 1.5 || at(best.lag) < 0.12) return null;   // noise and beatless audio have no repeat at the beat period
+    function peakNear(center) {
+      var c = Math.round(center), b = c, j;
+      for (j = c - 2; j <= c + 2; j++) if (j >= 2 && j < maxLag && ac[j] > ac[b]) b = j;
+      if (b < 2 || b >= maxLag) return center;
+      var y0 = ac[b - 1], y1 = ac[b], y2 = ac[b + 1], d = y0 - 2 * y1 + y2;
+      return d < 0 ? b + 0.5 * (y0 - y2) / d : b;
+    }
+    var cur = peakNear(best.lag), mult = 1;
+    while (cur * 2 + 3 < maxLag && mult < 8) { cur = peakNear(cur * 2); mult *= 2; }
+    var out = 60 * rate / (cur / mult);
+    if (!(out > 80 && out < 190)) return null;
+    var tidyBpm = function (x) { return Math.abs(x - Math.round(x)) < 0.2 ? Math.round(x) : Math.round(x * 10) / 10; };
+    var alt = out >= 140 ? tidyBpm(out / 2) : out < 92 ? tidyBpm(out * 2) : null;
+    return { bpm: tidyBpm(out), alt: alt, strength: best.score, onset: rise / level, repeat: at(best.lag) };
+  };
+
+  /* ---------- key ---------- */
+  var MAJ = [6.6, 2.0, 3.5, 2.3, 4.6, 4.0, 2.5, 5.2, 2.4, 3.7, 2.3, 3.4];
+  var MIN = [6.5, 2.7, 3.5, 5.4, 2.6, 3.5, 2.5, 5.2, 4.0, 2.7, 4.3, 3.2];
+  var NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+  var CAM_MAJ = [8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1], CAM_MIN = [5, 12, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10];
+  function corr(ch, prof, rot) {
+    var mx = 0, my = 0, i; for (i = 0; i < 12; i++) { mx += ch[i]; my += prof[i]; } mx /= 12; my /= 12;
+    var num = 0, dx = 0, dy = 0;
+    for (i = 0; i < 12; i++) { var a = ch[(i + rot) % 12] - mx, b = prof[i] - my; num += a * b; dx += a * a; dy += b * b; }
+    return dx && dy ? num / Math.sqrt(dx * dy) : 0;
+  }
+  /* Conventional spellings, and the key signature as +sharps / -flats. */
+  var MAJ_NAME = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+  var MAJ_SIG = [0, -5, 2, -3, 4, -1, -6, 1, -4, 3, -2, 5];
+  var MIN_NAME = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'B♭', 'B'];
+  var MIN_SIG = [-3, 4, -1, -6, 1, -4, 3, -2, 5, 0, -5, 2];
+  C.describeKey = function (pc, minor) {
+    var root = minor ? MIN_NAME[pc] : MAJ_NAME[pc], sig = minor ? MIN_SIG[pc] : MAJ_SIG[pc], n = Math.abs(sig);
+    return {
+      pc: pc, minor: minor,
+      name: root + (minor ? ' minor' : ' major'),
+      short: root + (minor ? 'm' : ''),
+      camelot: minor ? CAM_MIN[pc] + 'A' : CAM_MAJ[pc] + 'B',
+      sig: sig,
+      sigText: sig === 0 ? 'no sharps or flats' : n + (sig > 0 ? (n === 1 ? ' sharp' : ' sharps') : (n === 1 ? ' flat' : ' flats'))
+    };
+  };
+  C.keyFromChroma = function (ch) {
+    var all = [], r;
+    for (r = 0; r < 12; r++) { all.push({ pc: r, minor: false, c: corr(ch, MAJ, r) }); all.push({ pc: r, minor: true, c: corr(ch, MIN, r) }); }
+    all.sort(function (a, b) { return b.c - a.c; });
+    var out = C.describeKey(all[0].pc, all[0].minor);
+    out.score = all[0].c; out.margin = all[0].c - all[1].c; out.alt = C.describeKey(all[1].pc, all[1].minor);
+    return out;
+  };
+  /* Chroma from spectral peaks between 60 Hz and 2 kHz, then matched against key profiles. */
+  C.key = function (getFrame, total, sr) {
+    var N = sr > 50000 ? 32768 : 16384, half = N / 2, count = 40, i, k;
+    if (total < N * 3) return null;
+    var win = new Float64Array(N); for (i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+    var re = new Float64Array(N), im = new Float64Array(N), mag = new Float64Array(half), chroma = new Float64Array(12), used = 0;
+    var lo = Math.max(2, Math.floor(60 * N / sr)), hi = Math.min(half - 2, Math.ceil(2000 * N / sr)), span = total - N;
+    for (var w = 0; w < count; w++) {
+      var fr = getFrame(Math.floor(span * (0.1 + 0.8 * w / (count - 1))), N), e = 0;
+      for (i = 0; i < N; i++) { e += fr[i] * fr[i]; re[i] = fr[i] * win[i]; im[i] = 0; }
+      if (Math.sqrt(e / N) < 0.001) continue;
+      C.fft(re, im);
+      for (k = lo - 1; k <= hi + 1; k++) mag[k] = Math.sqrt(re[k] * re[k] + im[k] * im[k]);
+      var ch = new Float64Array(12), mx = 0;
+      for (k = lo; k <= hi; k++) {
+        if (mag[k] > mag[k - 1] && mag[k] >= mag[k + 1]) {
+          var midi = 69 + 12 * Math.log(k * sr / N / 440) / Math.LN2, near = Math.round(midi), dev = Math.abs(midi - near);
+          ch[((near % 12) + 12) % 12] += mag[k] * (1 - 1.6 * dev);
+        }
+      }
+      for (i = 0; i < 12; i++) if (ch[i] > mx) mx = ch[i];
+      if (!mx) continue;
+      for (i = 0; i < 12; i++) chroma[i] += ch[i] / mx;
+      used++;
+    }
+    if (used < 6) return null;
+    var mean = 0, sd = 0;
+    for (i = 0; i < 12; i++) mean += chroma[i] / 12;
+    for (i = 0; i < 12; i++) sd += (chroma[i] - mean) * (chroma[i] - mean) / 12;
+    if (!(mean > 0) || Math.sqrt(sd) / mean < 0.12) return null;   // flat chroma: noise or unpitched audio
+    var found = C.keyFromChroma(chroma);
+    return found.score < 0.55 ? null : found;             // weak match to every key: do not guess
+  };
+
+  C.khz = khz;
+  root.Core = C;
+  if (typeof module !== 'undefined' && module.exports) module.exports = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+  /* ---------- header motif: a spectrum that hits a wall ---------- */
+  (function () {
+    var box = $('bars'), n = 44, cut = 31;
+    for (var i = 0; i < n; i++) {
+      var b = el('span', i >= cut ? 'bar cut' : 'bar');
+      var h = i >= cut ? 6 : Math.round(26 + 62 * Math.pow(1 - i / n, 1.25) * (0.72 + 0.28 * Math.abs(Math.sin(i * 1.9))));
+      b.style.height = h + '%';
+      box.appendChild(b);
+    }
+  })();
+
+  /* ---------- spectrum drawing ---------- */
+  function drawSpectrum(cv, db, sr, wall) {
+    var dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 600, h = cv.clientHeight || 150;
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    var g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    var padL = 2, padR = 2, padT = 10, padB = 20, pw = w - padL - padR, ph = h - padT - padB;
+    var nyq = sr / 2, half = db.length, cols = Math.max(40, Math.floor(pw)), ys = new Float64Array(cols), peak = -Infinity, x, k;
+    for (x = 0; x < cols; x++) {
+      var a = Math.floor(x / cols * half), b = Math.max(a + 1, Math.floor((x + 1) / cols * half)), s = 0;
+      for (k = a; k < b; k++) s += db[k];
+      ys[x] = s / (b - a); if (ys[x] > peak) peak = ys[x];
+    }
+    var topDb = peak + 6, range = 110;
+    var Y = function (v) { return padT + ph * Math.min(1, Math.max(0, (topDb - v) / range)); };
+    var X = function (f) { return padL + pw * f / nyq; };
+    g.font = '500 11px Montserrat, system-ui, sans-serif'; g.textBaseline = 'alphabetic'; g.textAlign = 'center';
+    g.strokeStyle = cssVar('--line'); g.fillStyle = cssVar('--muted'); g.lineWidth = 1;
+    var step = nyq > 30000 ? 10000 : 5000;
+    for (var f = step; f < nyq - 500; f += step) {
+      var gx = Math.round(X(f)) + 0.5;
+      g.beginPath(); g.moveTo(gx, padT); g.lineTo(gx, padT + ph); g.stroke();
+      g.fillText((f / 1000) + ' kHz', gx, h - 5);
+    }
+    g.beginPath(); g.moveTo(padL, padT + ph + 0.5); g.lineTo(padL + pw, padT + ph + 0.5); g.stroke();
+    var accent = cssVar('--accent');
+    g.beginPath(); g.moveTo(padL, padT + ph);
+    for (x = 0; x < cols; x++) g.lineTo(padL + (x + 0.5) / cols * pw, Y(ys[x]));
+    g.lineTo(padL + pw, padT + ph); g.closePath();
+    g.globalAlpha = 0.16; g.fillStyle = accent; g.fill(); g.globalAlpha = 1;
+    g.beginPath();
+    for (x = 0; x < cols; x++) { var px = padL + (x + 0.5) / cols * pw, py = Y(ys[x]); if (x) g.lineTo(px, py); else g.moveTo(px, py); }
+    g.strokeStyle = accent; g.lineWidth = 1.5; g.lineJoin = 'round'; g.stroke();
+    if (wall) {
+      var wx = Math.round(X(wall.freq)) + 0.5, bad = cssVar('--bad');
+      g.setLineDash([5, 4]); g.strokeStyle = bad; g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(wx, padT - 4); g.lineTo(wx, padT + ph); g.stroke(); g.setLineDash([]);
+      g.fillStyle = bad; g.font = '600 11px Montserrat, system-ui, sans-serif';
+      var label = 'stops at ' + Core.khz(wall.freq), tw = g.measureText(label).width;
+      g.textAlign = wx + 8 + tw > w ? 'right' : 'left';
+      g.fillText(label, g.textAlign === 'right' ? wx - 7 : wx + 7, padT + 10);
+    }
+  }
+  var plots = [];
+  function plot(cv, db, sr, wall) { plots.push([cv, db, sr, wall]); drawSpectrum(cv, db, sr, wall); }
+  function redraw() { plots = plots.filter(function (p) { return p[0].isConnected; }); plots.forEach(function (p) { drawSpectrum.apply(null, p); }); }
+  var rt; window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(redraw, 120); });
+  try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redraw); } catch (e) {}
+  try { new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); } catch (e) {}
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
+
+  /* ---------- key signature on a treble staff ---------- */
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  function svg(tag, attrs) { var e = document.createElementNS(SVGNS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  var SHARP_POS = [8, 5, 9, 6, 3, 7, 4], FLAT_POS = [4, 7, 3, 6, 2, 5, 1];  // steps above the bottom line (E4)
+  function staff(sig, label) {
+    var n = Math.abs(sig), gap = 9, w = 52 + n * 11 + 14, base = 50;
+    var s = svg('svg', { viewBox: '0 0 ' + w + ' 66', width: w, height: 66, role: 'img', 'aria-label': label, 'class': 'staff' });
+    for (var i = 0; i < 5; i++) s.appendChild(svg('line', { x1: 0, x2: w, y1: base - i * gap, y2: base - i * gap, 'class': 'st-line' }));
+    var clef = svg('text', { x: 3, y: base + 8, 'class': 'st-clef' }); clef.textContent = '𝄞'; s.appendChild(clef);
+    for (var j = 0; j < n; j++) {
+      var x = 44 + j * 11, y = base - (sig > 0 ? SHARP_POS[j] : FLAT_POS[j]) * gap / 2;
+      if (sig > 0) {
+        s.appendChild(svg('path', { d: 'M' + (x + 1.6) + ' ' + (y - 9) + 'V' + (y + 7) + 'M' + (x + 4.8) + ' ' + (y - 7) + 'V' + (y + 9), 'class': 'st-thin' }));
+        s.appendChild(svg('path', { d: 'M' + (x - 0.5) + ' ' + (y - 1.8) + 'L' + (x + 7) + ' ' + (y - 4.2) + 'M' + (x - 0.5) + ' ' + (y + 4.2) + 'L' + (x + 7) + ' ' + (y + 1.8), 'class': 'st-thick' }));
+      } else {
+        s.appendChild(svg('path', { d: 'M' + x + ' ' + (y - 14) + 'V' + (y + 4.5) + 'C' + (x + 3) + ' ' + (y + 2.5) + ' ' + (x + 8.5) + ' ' + (y - 0.5) + ' ' + (x + 7.4) + ' ' + (y - 3.4) + 'C' + (x + 6.4) + ' ' + (y - 6) + ' ' + (x + 2) + ' ' + (y - 4.5) + ' ' + x + ' ' + (y - 1.5), 'class': 'st-flat' }));
+      }
+    }
+    return s;
+  }
+
+  /* ---------- reference shapes (illustrations, not measurements) ---------- */
+  (function () {
+    var half = 512, sr = 44100, a = new Float64Array(half), b = new Float64Array(half), seed = 7;
+    function r() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff - 0.5; }
+    for (var k = 0; k < half; k++) {
+      var f = k / half * 22050, base = -18 - 34 * Math.pow(f / 22050, 0.8) + r() * 5;
+      a[k] = f > 21300 ? base - (f - 21300) / 12 : base;
+      b[k] = f > 16000 ? -150 : base;
+    }
+    plot($('ref-full'), a, sr, null);
+    plot($('ref-lossy'), b, sr, { freq: 16000 });
+  })();
+
+  /* ---------- finder ---------- */
+  var current = null;
+  function renderStores(query, parsed) {
+    var box = $('find-result'); box.textContent = '';
+    Core.stores(query, parsed).forEach(function (grp) {
+      var sec = el('div', 'group');
+      sec.appendChild(el('h3', null, grp.group));
+      var grid = el('div', 'stores');
+      grp.items.forEach(function (it) {
+        var a = el('a', 'store'); a.href = it.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        a.appendChild(el('span', 'store-name', it.name));
+        a.appendChild(el('span', 'store-get', it.get));
+        grid.appendChild(a);
+      });
+      sec.appendChild(grid); box.appendChild(sec);
+    });
+  }
+  function showFind(parsed, isExample) {
+    current = parsed;
+    $('find-refine').hidden = false;
+    $('find-query').value = parsed.query;
+    $('find-source').textContent = isExample ? 'Example' : parsed.source;
+    $('find-source').className = 'chip' + (isExample ? ' chip-example' : '');
+    var note = $('find-note');
+    note.textContent = isExample ? 'This is a sample search. Paste your own link or type a track above.' : (parsed.note || '');
+    note.hidden = !note.textContent; note.className = 'note';
+    $('add-crate').disabled = !!isExample;
+    renderStores(parsed.query, parsed);
+  }
+  function runFind(text) {
+    var p = Core.parseInput(text);
+    if (!p.ok) { var note = $('find-note'); note.textContent = p.note; note.hidden = false; note.className = 'note note-warn'; return; }
+    showFind(p, false);
+  }
+  $('find-form').addEventListener('submit', function (e) { e.preventDefault(); runFind($('find-input').value); });
+  $('find-input').addEventListener('paste', function () { setTimeout(function () { runFind($('find-input').value); }, 0); });
+  $('find-query').addEventListener('input', function () {
+    if (!current) return;
+    var q = $('find-query').value.trim(); if (!q) return;
+    if (current.source === 'Example' || $('find-source').textContent === 'Example') {
+      current = { ok: true, source: 'Typed', query: q, note: '' };
+      $('find-source').textContent = 'Typed'; $('find-source').className = 'chip'; $('find-note').hidden = true; $('add-crate').disabled = false;
+    }
+    current.query = q; renderStores(q, current);
+  });
+  $('add-crate').addEventListener('click', function () {
+    if (!current || !current.query) return;
+    addItem({ q: current.query, src: current.source || 'Typed', url: current.url || '', got: false, added: Date.now() });
+    var b = $('add-crate'), old = b.textContent; b.textContent = 'Added'; setTimeout(function () { b.textContent = old; }, 1400);
+  });
+  showFind({ ok: true, source: 'Typed', query: 'Floating Points Vocoder', note: '' }, true);
+
+  /* ---------- checker ---------- */
+  function decode(buf, rate) {
+    var Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Ctx) return Promise.reject(new Error('This browser cannot decode audio.'));
+    var ctx; try { ctx = new Ctx(2, 2, rate); } catch (e) { ctx = new Ctx(2, 2, 44100); }
+    return new Promise(function (res, rej) { var p = ctx.decodeAudioData(buf, res, rej); if (p && p.catch) p.catch(rej); });
+  }
+  function fmtTime(s) { s = Math.round(s); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+
+  async function analyze(file) {
+    if (file.size > 600 * 1024 * 1024) throw new Error('This file is over 600 MB. Check a shorter one.');
+    var buf = await file.arrayBuffer();
+    var info = Core.parseWav(buf) || Core.parseAiff(buf), getFrame, total, sr, limited = false;
+    if (info) { getFrame = Core.pcmReader(buf, info); total = info.frames; sr = info.sampleRate; }
+    else {
+      info = Core.sniff(buf, file.name);
+      var native = info.sampleRate || 44100;
+      limited = native > 48000;
+      var audio;
+      try { audio = await decode(buf, Math.min(native, 48000)); }
+      catch (e) { throw new Error('This browser could not read the file. WAV, AIFF, FLAC, MP3 and M4A work best.'); }
+      sr = audio.sampleRate; total = audio.length;
+      var chans = []; for (var c = 0; c < audio.numberOfChannels; c++) chans.push(audio.getChannelData(c));
+      if (!info.channels) info.channels = chans.length;
+      getFrame = function (start, N) {
+        var out = new Float32Array(N);
+        for (var ch = 0; ch < chans.length; ch++) { var d = chans[ch]; for (var i = 0; i < N; i++) out[i] += (d[start + i] || 0) / chans.length; }
+        return out;
+      };
+    }
+    var N = sr > 50000 ? 16384 : 8192;
+    if (total < N * 6) throw new Error('This file is too short to judge. Use a clip of at least a few seconds.');
+    var spec = Core.averageSpectrum(getFrame, total, N, 48);
+    if (spec.used < 4) throw new Error('This file is too quiet to judge.');
+    var wall = Core.detectWall(spec.db, sr), tempo = null, key = null;
+    try { tempo = Core.tempo(getFrame, total, sr); } catch (e) { tempo = null; }
+    try { key = Core.key(getFrame, total, sr); } catch (e) { key = null; }
+    return { info: info, sr: sr, db: spec.db, wall: wall, verdict: Core.verdict(info, wall, sr), duration: total / sr, limited: limited, tempo: tempo, key: key };
+  }
+
+  function resultCard(name) {
+    var card = el('article', 'result');
+    var head = el('div', 'result-head');
+    head.appendChild(el('h3', 'result-name', name));
+    var pill = el('span', 'pill pill-wait', 'Analyzing'); head.appendChild(pill);
+    card.appendChild(head);
+    var detail = el('p', 'result-detail', 'Reading the file on this device.'); card.appendChild(detail);
+    return { card: card, pill: pill, detail: detail };
+  }
+  async function handleFiles(list) {
+    var files = Array.prototype.slice.call(list || []);
+    if (!files.length) return;
+    var box = $('check-results');
+    $('check-empty').hidden = true;
+    for (var i = 0; i < files.length; i++) {
+      var ui = resultCard(files[i].name);
+      box.insertBefore(ui.card, box.firstChild);
+      await new Promise(function (r) { setTimeout(r, 30); });
+      try {
+        var r = await analyze(files[i]);
+        ui.pill.className = 'pill pill-' + r.verdict.tone; ui.pill.textContent = r.verdict.label;
+        ui.detail.textContent = r.verdict.detail;
+        var facts = [r.info.container, (r.info.sampleRate || r.sr) / 1000 + ' kHz'];
+        if (r.info.bits) facts.push(r.info.bits + '-bit' + (r.info.float ? ' float' : ''));
+        facts.push(fmtTime(r.duration));
+        facts.push(r.wall ? 'content to ' + Core.khz(r.wall.freq) : 'content to ' + Core.khz(Math.min(r.sr / 2, 22050)) + (r.sr > 50000 ? ' and above' : ''));
+        if (r.limited) facts.push('checked up to 24 kHz');
+        var dj = el('div', 'dj');
+        var b1 = el('div', 'dj-item'); b1.appendChild(el('span', 'dj-label', 'Tempo'));
+        b1.appendChild(el('span', 'dj-value', r.tempo ? r.tempo.bpm + ' BPM' : 'No steady beat found'));
+        if (r.tempo && r.tempo.alt) b1.appendChild(el('span', 'dj-alt', 'or ' + r.tempo.alt + (r.tempo.alt < r.tempo.bpm ? ' half-time' : ' double-time')));
+        var b2 = el('div', 'dj-item'); b2.appendChild(el('span', 'dj-label', 'Key'));
+        b2.appendChild(el('span', 'dj-value', r.key ? r.key.name : 'Not clear'));
+        if (r.key) {
+          var line = el('div', 'key-line');
+          line.appendChild(el('span', 'cam', r.key.camelot));
+          line.appendChild(el('span', 'dj-alt', r.key.short + ' · ' + r.key.sigText));
+          b2.appendChild(line);
+          b2.appendChild(staff(r.key.sig, r.key.name + ', ' + r.key.sigText));
+          if (r.key.margin < 0.05) b2.appendChild(el('span', 'dj-alt', 'Close call with ' + r.key.alt.name + ' (' + r.key.alt.camelot + ')'));
+        }
+        dj.appendChild(b1); dj.appendChild(b2); ui.card.appendChild(dj);
+        var fl = el('ul', 'facts'); facts.forEach(function (t) { fl.appendChild(el('li', null, t)); }); ui.card.appendChild(fl);
+        var cv = el('canvas', 'spec'); cv.setAttribute('role', 'img');
+        cv.setAttribute('aria-label', 'Frequency content of ' + files[i].name + '. ' + r.verdict.detail);
+        ui.card.appendChild(cv); plot(cv, r.db, r.sr, r.wall);
+      } catch (e) {
+        ui.pill.className = 'pill pill-info'; ui.pill.textContent = 'Not checked';
+        ui.detail.textContent = (e && e.message) || 'Something went wrong reading this file.';
+      }
+    }
+  }
+  var drop = $('drop'), input = $('file-input');
+  input.addEventListener('change', function () { handleFiles(input.files); input.value = ''; });
+  ['dragenter', 'dragover'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (e) { if (e.dataTransfer) handleFiles(e.dataTransfer.files); });
+  window.addEventListener('dragover', function (e) { e.preventDefault(); });
+  window.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  /* ---------- crate ---------- */
+  var LS = 'clean-crate-v1', items = [], store = { mode: 'local', col: null };
+  function loadLocal() { try { return JSON.parse(localStorage.getItem(LS) || '[]') || []; } catch (e) { return []; } }
+  function saveLocal() { try { localStorage.setItem(LS, JSON.stringify(items)); } catch (e) {} }
+  function newId() { return 't' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
+  function body(it) { return { q: it.q, src: it.src || 'Typed', url: it.url || '', got: !!it.got, added: it.added || Date.now() }; }
+  function setSync(state) {
+    var s = $('sync'), map = {
+      local: ['Saved on this device only', 'sync-local'],
+      connecting: ['Connecting to your saved crate', 'sync-wait'],
+      slow: ['Saved crate not reached yet. Showing what this device has.', 'sync-wait'],
+      cloud: ['Synced to your Claude account, on every device', 'sync-ok'],
+      error: ['Could not save that change. Try again.', 'sync-bad']
+    };
+    s.textContent = map[state][0]; s.className = 'sync ' + map[state][1];
+  }
+  function renderCrate() {
+    var list = $('crate-list'); list.textContent = '';
+    var sorted = items.slice().sort(function (a, b) { return (a.got - b.got) || (b.added - a.added); });
+    $('crate-empty').hidden = sorted.length > 0;
+    $('copy-list').hidden = sorted.length === 0;
+    var need = sorted.filter(function (i) { return !i.got; }).length;
+    $('crate-count').textContent = sorted.length ? need + ' to get, ' + (sorted.length - need) + ' in your library' : '';
+    sorted.forEach(function (it) {
+      var li = el('li', 'track' + (it.got ? ' got' : ''));
+      var cid = 'got-' + it.id;
+      var cb = el('input', 'big-check'); cb.type = 'checkbox'; cb.id = cid; cb.checked = !!it.got;
+      cb.addEventListener('change', function () { updateItem(it.id, { got: cb.checked }); });
+      var lab = el('label', 'track-main'); lab.htmlFor = cid;
+      lab.appendChild(el('span', 'track-title', it.q));
+      lab.appendChild(el('span', 'track-meta', (it.got ? 'In your library' : 'Still to get') + (it.src && it.src !== 'Typed' ? ' · from ' + it.src : '')));
+      var acts = el('div', 'track-acts');
+      var find = el('button', 'ghost', 'Find'); find.type = 'button';
+      find.addEventListener('click', function () {
+        showFind({ ok: true, source: it.src || 'Typed', query: it.q, url: it.url || '', note: '' }, false);
+        $('find-input').value = it.url || it.q;
+        $('find').scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      });
+      var rm = el('button', 'ghost danger', 'Remove'); rm.type = 'button';
+      rm.setAttribute('aria-label', 'Remove ' + it.q);
+      rm.addEventListener('click', function () { removeItem(it.id); });
+      acts.appendChild(find); acts.appendChild(rm);
+      li.appendChild(cb); li.appendChild(lab); li.appendChild(acts); list.appendChild(li);
+    });
+  }
+  function fail() { setSync('error'); setTimeout(function () { setSync(store.mode === 'cloud' ? 'cloud' : 'local'); }, 4000); }
+  function addItem(data) {
+    var id = newId();
+    if (store.mode === 'cloud') { store.col.doc(id).set(body(data)).catch(fail); }
+    else { items.push(Object.assign({ id: id }, body(data))); saveLocal(); renderCrate(); }
+  }
+  function updateItem(id, patch) {
+    var it = items.filter(function (i) { return i.id === id; })[0]; if (!it) return;
+    var next = Object.assign({}, it, patch);
+    if (store.mode === 'cloud') { store.col.doc(id).set(body(next)).catch(fail); }
+    else { items = items.map(function (i) { return i.id === id ? next : i; }); saveLocal(); renderCrate(); }
+  }
+  function removeItem(id) {
+    if (store.mode === 'cloud') { store.col.doc(id).delete().catch(fail); }
+    else { items = items.filter(function (i) { return i.id !== id; }); saveLocal(); renderCrate(); }
+  }
+  $('copy-list').addEventListener('click', function () {
+    var text = items.slice().sort(function (a, b) { return (a.got - b.got) || (b.added - a.added); })
+      .map(function (i) { return (i.got ? '[x] ' : '[ ] ') + i.q; }).join('\n');
+    var b = $('copy-list'), done = function (t) { var old = 'Copy list'; b.textContent = t; setTimeout(function () { b.textContent = old; }, 1500); };
+    try { navigator.clipboard.writeText(text).then(function () { done('Copied'); }, function () { done('Copy was blocked'); }); }
+    catch (e) { done('Copy was blocked'); }
+  });
+
+  async function initStore() {
+    items = loadLocal(); renderCrate();
+    if (!window.claude || typeof window.claude.use !== 'function') { setSync('local'); return; }
+    setSync('connecting');
+    var db = null, user = null, uid = null, col = null;
+    try { var got = await Promise.all([window.claude.use('db'), window.claude.use('user')]); db = got[0]; user = got[1]; } catch (e) {}
+    try { uid = user ? await user.id() : null; } catch (e) { uid = null; }
+    if (!db || !uid) { setSync('local'); return; }
+    try { col = db.doc('data/users/' + uid + '/crate').collection('tracks'); } catch (e) { setSync('local'); return; }
+    var timer = setTimeout(function () { setSync('slow'); }, 10000), migrated = false, live = false;
+    col.onSnapshot(function (snap) {
+      var cloud = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+      if (!snap.metadata.fromCache && !live) {
+        live = true; clearTimeout(timer); store = { mode: 'cloud', col: col }; setSync('cloud');
+        if (!migrated) {
+          migrated = true;
+          var have = {}; cloud.forEach(function (c) { have[c.id] = 1; });
+          var local = loadLocal().filter(function (l) { return l && l.id && l.q && !have[l.id]; });
+          (async function () {
+            for (var i = 0; i < local.length; i++) { try { await col.doc(local[i].id).set(body(local[i])); } catch (e) { return; } }
+            try { localStorage.removeItem(LS); } catch (e) {}
+          })();
+        }
+      }
+      if (live || cloud.length) { items = cloud; renderCrate(); }
+    }, function () { clearTimeout(timer); store = { mode: 'local', col: null }; items = loadLocal(); setSync('local'); renderCrate(); });
+  }
+  initStore();
+})();
+
+</script>
+</body>
+</html>
