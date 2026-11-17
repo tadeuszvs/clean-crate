@@ -713,6 +713,24 @@
   };
   C.SUGGEST = C.HELPER + 'suggest?q=';
 
+  /* ---------- moving low-quality files into a "BADQUALITY" copy of the folder tree ---------- */
+  C.BAD = ' BADQUALITY';
+  /* relPath like "DJ Assets/House/Deep/x.wav"; rootName = name of the folder the user picked */
+  C.badPlan = function (relPath, rootName) {
+    var parts = String(relPath || '').split('/').filter(Boolean);
+    if (parts.length && parts[0] === rootName) parts.shift();
+    var name = parts.pop();
+    var srcDirs = parts;
+    return {
+      name: name,
+      srcDirs: srcDirs,
+      top: rootName + C.BAD,
+      dstDirs: srcDirs.map(function (d) { return /BADQUALITY$/.test(d) ? d : d + C.BAD; }),
+      display: [rootName + C.BAD].concat(srcDirs.map(function (d) { return d + C.BAD; })).concat([name]).join('/')
+    };
+  };
+  C.isBadFolder = function (path) { return /(^|\/)[^\/]*BADQUALITY\//.test(String(path || '')); };
+
   C.khz = khz;
   root.Core = C;
   if (typeof module !== 'undefined' && module.exports) module.exports = C;

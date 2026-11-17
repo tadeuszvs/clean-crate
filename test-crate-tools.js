@@ -77,4 +77,8 @@ const rg = C.pickReleaseGroup({ 'release-groups': [
   { id: 'real', title: 'Blonde', score: 95, 'first-release-date': '2016-08-20', 'artist-credit': [{ name: 'Frank Ocean' }] }] }, 'Blonde', 'Frank Ocean');
 ok('release group: original album, right artist, not compilation', rg && rg.id === 'real');
 ok('discogs master from MB links', JSON.stringify(C.discogsFromRels({ relations: [{ url: { resource: 'https://www.last.fm/x' } }, { url: { resource: 'https://www.discogs.com/master/1046042' } }] })) === '{"kind":"master","id":"1046042"}');
+const bp = C.badPlan('DJ Assets/House/Deep/Old Rip.mp3', 'DJ Assets');
+ok('bad plan mirrors subfolders', bp.display === 'DJ Assets BADQUALITY/House BADQUALITY/Deep BADQUALITY/Old Rip.mp3' && bp.srcDirs.join('/') === 'House/Deep' && bp.name === 'Old Rip.mp3', bp.display);
+ok('bad plan for file at top level', C.badPlan('DJ Assets/x.wav', 'DJ Assets').display === 'DJ Assets BADQUALITY/x.wav');
+ok('bad folder detected', C.isBadFolder('DJ Assets BADQUALITY/House BADQUALITY/x.wav') && !C.isBadFolder('DJ Assets/House/x.wav'));
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED'); process.exit(fails ? 1 : 0);

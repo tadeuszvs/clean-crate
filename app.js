@@ -982,7 +982,7 @@
     return files;
   }
   async function runCheck(fileList) {
-    var files = Array.prototype.slice.call(fileList || []).filter(function (f) { return AUDIO.test(f.name) && f.size > 0 && !/^\._/.test(f.name); });
+    var files = Array.prototype.slice.call(fileList || []).filter(function (f) { return AUDIO.test(f.name) && f.size > 0 && !/^\._/.test(f.name) && !Core.isBadFolder(f.webkitRelativePath || f.relPath || ''); });
     var skipped = (fileList.length || 0) - files.length;
     if (!files.length) { $('check-run').hidden = false; $('check-status').textContent = 'No audio files found there.'; $('check-bar').style.width = '0'; return; }
     if (check.busy) return;
@@ -1039,6 +1039,12 @@
       var up = el('button', 'primary', 'Find better copies of ' + lows.length + ' low-quality file' + (lows.length === 1 ? '' : 's')); up.type = 'button';
       up.addEventListener('click', function () { upgrade(lows, up); });
       acts.appendChild(up);
+      var lowsLeft = lows.filter(function (f) { return !f.moved; });
+      if (lowsLeft.length) {
+        var mv = el('button', 'ghost', 'Move ' + lowsLeft.length + ' low-quality file' + (lowsLeft.length === 1 ? '' : 's') + ' to a BADQUALITY folder'); mv.type = 'button';
+        mv.addEventListener('click', function () { moveSetup(lowsLeft); });
+        acts.appendChild(mv);
+      }
       var cp = el('button', 'ghost', 'Copy list of low-quality files'); cp.type = 'button';
       cp.addEventListener('click', function () { copyText(lows.map(function (f) { return f.path + '  (' + f.why.split('.')[0] + ')'; }).join('\n'), cp, 'Copy list of low-quality files'); });
       acts.appendChild(cp);
@@ -1053,13 +1059,145 @@
     if (shown.length > cap) list.appendChild(el('p', 'status', 'Showing ' + cap + ' of ' + shown.length + '. Filter by group to see the rest.')).style.padding = '14px 16px';
     list.hidden = !shown.length;
   }
+  /* ---------- move low-quality files (Chrome / Edge on a computer) ---------- */
+  function movePanel() { var p = $('move-panel'); p.textContent = ''; p.hidden = false; return p; }
+  function closeMove() { $('move-panel').hidden = true; $('move-panel').textContent = ''; }
+  function moveButtons(p, items) {
+    var row = el('div', 'row');
+    items.forEach(function (b) { row.appendChild(b); });
+    p.appendChild(row);
+  }
+  function mkBtn(cls, text, fn) { var b = el('button', cls, text); b.type = 'button'; b.addEventListener('click', fn); return b; }
+  function topFolder(files) { var t = (files[0] && files[0].path || '').split('/'); return t.length > 1 ? t[0] : ''; }
+  function moveSetup(lows) {
+    var p = movePanel();
+    p.appendChild(el('h3', null, 'Move ' + lows.length + ' low-quality file' + (lows.length === 1 ? '' : 's')));
+    if (!window.showDirectoryPicker) {
+      p.appendChild(el('p', 'status', 'Moving files needs Chrome or Edge on a computer. Safari and phones don’t let web pages change your folders. Open Clean Crate in Chrome or Edge, check the folder there, then use this button.'));
+      moveButtons(p, [mkBtn('ghost', 'Close', closeMove)]);
+      p.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+      return;
+    }
+    var top = topFolder(lows);
+    var steps = el('ol', 'move-steps');
+    steps.appendChild(el('li', null, 'Choose the folder you just checked' + (top ? ' (“' + top + '”)' : '') + '. Your browser will ask to let Clean Crate edit it.'));
+    steps.appendChild(el('li', null, 'Choose where the new “' + (top || 'folder') + C_BAD + '” folder goes. Usually the folder that holds “' + (top || 'your assets folder') + '”.'));
+    steps.appendChild(el('li', null, 'Check the preview, then confirm. Each file is copied, checked, and only then removed from the original folder.'));
+    p.appendChild(steps);
+    p.appendChild(el('p', 'hint', 'Tracks in Rekordbox, Serato or Traktor will show as missing after this until you relocate them. Clean Crate gives you a list of every move to help.'));
+    moveButtons(p, [mkBtn('primary', 'Choose “' + (top || 'the') + '” folder', function () { pickSource(lows, top); }), mkBtn('ghost', 'Cancel', closeMove)]);
+    p.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+  }
+  var C_BAD = ' BADQUALITY';
+  async function pickSource(lows, top) {
+    var src;
+    try { src = await window.showDirectoryPicker({ id: 'cc-assets', mode: 'readwrite' }); } catch (e) { return; }
+    if (top && src.name !== top) {
+      try { src = await src.getDirectoryHandle(top); }
+      catch (e) { return moveError('That folder is “' + src.name + '”, but the files you checked are in “' + top + '”. Choose “' + top + '” itself.', lows); }
+    }
+    var p = movePanel();
+    p.appendChild(el('p', 'status loading', 'Finding the ' + lows.length + ' files in “' + src.name + '”…'));
+    var plan = [], missing = [];
+    for (var i = 0; i < lows.length; i++) {
+      var f = lows[i], pl = Core.badPlan(f.path, src.name);
+      try {
+        var dir = src;
+        for (var d = 0; d < pl.srcDirs.length; d++) dir = await dir.getDirectoryHandle(pl.srcDirs[d]);
+        var fh = await dir.getFileHandle(pl.name);
+        var file = await fh.getFile();
+        if (file.size !== f.size) { missing.push({ f: f, why: 'changed since it was checked' }); continue; }
+        plan.push({ f: f, pl: pl, dir: dir, fh: fh, size: file.size });
+      } catch (e) { missing.push({ f: f, why: 'not found' }); }
+    }
+    p = movePanel();
+    p.appendChild(el('h3', null, 'Now choose where the BADQUALITY folder goes'));
+    p.appendChild(el('p', 'hint', 'Pick the folder that holds “' + src.name + '” to put “' + src.name + C_BAD + '” right next to it.' + (missing.length ? ' ' + missing.length + ' file' + (missing.length === 1 ? ' was' : 's were') + ' skipped (' + missing.slice(0, 3).map(function (m) { return m.f.name + ': ' + m.why; }).join('; ') + (missing.length > 3 ? '…' : '') + ').' : '')));
+    if (!plan.length) return moveError('None of the files could be found in that folder.', lows);
+    moveButtons(p, [mkBtn('primary', 'Choose where it goes', function () { pickDest(src, plan, missing, lows); }), mkBtn('ghost', 'Cancel', closeMove)]);
+  }
+  function moveError(msg, lows) {
+    var p = movePanel();
+    p.appendChild(el('p', 'note-warn status', msg));
+    moveButtons(p, [mkBtn('primary', 'Try again', function () { moveSetup(lows); }), mkBtn('ghost', 'Cancel', closeMove)]);
+  }
+  async function pickDest(src, plan, missing, lows) {
+    var dst;
+    try { dst = await window.showDirectoryPicker({ id: 'cc-bad', mode: 'readwrite', startIn: src }); } catch (e) { return; }
+    try { if (await dst.isSameEntry(src)) return moveError('That’s the same folder. Choose the folder that holds “' + src.name + '”, so the BADQUALITY folder sits next to it instead of inside it.', lows); } catch (e) {}
+    try { if ((await src.resolve(dst)) !== null) return moveError('That folder is inside “' + src.name + '”. Choose the folder that holds “' + src.name + '” instead.', lows); } catch (e) {}
+    var p = movePanel();
+    p.appendChild(el('h3', null, 'Ready to move ' + plan.length + ' file' + (plan.length === 1 ? '' : 's')));
+    p.appendChild(el('p', 'hint', 'From “' + src.name + '” into “' + dst.name + '/' + src.name + C_BAD + '”. Nothing is overwritten: if a file with the same name is already there, that one is skipped.'));
+    var map = el('div', 'move-map');
+    plan.slice(0, 300).forEach(function (x) {
+      var row = el('div');
+      row.appendChild(el('div', null, x.f.path));
+      row.appendChild(el('span', 'to', '→ ' + dst.name + '/' + x.pl.display));
+      row.style.borderTop = 'none'; map.appendChild(row);
+    });
+    if (plan.length > 300) map.appendChild(el('div', 'to', '…and ' + (plan.length - 300) + ' more'));
+    p.appendChild(map);
+    moveButtons(p, [mkBtn('btn-danger', 'Move ' + plan.length + ' file' + (plan.length === 1 ? '' : 's'), function () { doMove(src, dst, plan, missing); }), mkBtn('ghost', 'Cancel', closeMove)]);
+  }
+  async function getDirPath(root, names) { var d = root; for (var i = 0; i < names.length; i++) d = await d.getDirectoryHandle(names[i], { create: true }); return d; }
+  async function exists(dir, name) { try { await dir.getFileHandle(name); return true; } catch (e) { return false; } }
+  async function doMove(src, dst, plan, missing) {
+    var p = movePanel();
+    p.appendChild(el('h3', null, 'Moving…'));
+    var bar = el('div', 'progress'); var fill = el('span'); bar.appendChild(fill); p.appendChild(bar);
+    var st = el('p', 'status loading', ''); p.appendChild(st);
+    window.addEventListener('beforeunload', warnLeave);
+    var log = [['status', 'from', 'to', 'note']], moved = 0, skipped = [];
+    missing.forEach(function (m) { log.push(['skipped', m.f.path, '', m.why]); });
+    for (var i = 0; i < plan.length; i++) {
+      var x = plan[i], to = dst.name + '/' + x.pl.display;
+      st.textContent = 'Moving ' + (i + 1) + ' of ' + plan.length + ': ' + x.pl.name;
+      try {
+        var target = await getDirPath(dst, [x.pl.top].concat(x.pl.dstDirs));
+        if (await exists(target, x.pl.name)) throw new Error('a file with that name is already there');
+        var done = false;
+        if (typeof x.fh.move === 'function') { try { await x.fh.move(target); done = await exists(target, x.pl.name) && !(await exists(x.dir, x.pl.name)); } catch (e) { done = false; } }
+        if (!done) {
+          var file = await x.fh.getFile();
+          var nh = await target.getFileHandle(x.pl.name, { create: true });
+          var w = await nh.createWritable();
+          await file.stream().pipeTo(w);
+          var copy = await nh.getFile();
+          if (copy.size !== x.size) { try { await target.removeEntry(x.pl.name); } catch (e) {} throw new Error('the copy didn’t match, so the original was left in place'); }
+          await x.dir.removeEntry(x.pl.name);
+        }
+        moved++; x.f.moved = to;
+        log.push(['moved', src.name + '/' + x.pl.srcDirs.concat([x.pl.name]).join('/'), to, '']);
+      } catch (e) {
+        skipped.push(x.pl.name + ': ' + (e && e.message || 'couldn’t move'));
+        log.push(['skipped', x.f.path, to, String(e && e.message || e)]);
+      }
+      fill.style.width = ((i + 1) / plan.length * 100) + '%';
+    }
+    window.removeEventListener('beforeunload', warnLeave);
+    var csv = log.map(function (r) { return r.map(function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
+    p = movePanel();
+    p.appendChild(el('h3', null, 'Moved ' + moved + ' file' + (moved === 1 ? '' : 's') + ' into “' + src.name + C_BAD + '”'));
+    if (skipped.length) p.appendChild(el('p', 'note-warn status', skipped.length + ' skipped: ' + skipped.slice(0, 4).join('; ') + (skipped.length > 4 ? '…' : '')));
+    p.appendChild(el('p', 'hint', 'Save the move list. It shows where every file went, which helps when relocating tracks in Rekordbox.'));
+    var dl = mkBtn('primary', 'Save the move list (CSV)', function () {
+      var blob = new Blob(['﻿' + csv], { type: 'text/csv' });
+      var a2 = document.createElement('a'); a2.href = URL.createObjectURL(blob); a2.download = 'clean-crate-moves-' + new Date().toISOString().slice(0, 10) + '.csv';
+      document.body.appendChild(a2); a2.click(); setTimeout(function () { URL.revokeObjectURL(a2.href); a2.remove(); }, 1000);
+    });
+    moveButtons(p, [dl, mkBtn('ghost', 'Done', closeMove)]);
+    renderCheck();
+  }
+  function warnLeave(e) { e.preventDefault(); e.returnValue = ''; }
+
   function fileRow(f, idx) {
     var wrap = el('div', 'file');
     var b = el('button'); b.type = 'button'; b.setAttribute('aria-expanded', String(check.open === idx));
     b.appendChild(el('span', 'dot ' + f.grade));
     var m = el('span', 'item-main');
     m.appendChild(el('span', 'item-top', f.path));
-    m.appendChild(el('span', 'item-sub', f.grade === 'none' ? f.why : fileFacts(f)));
+    m.appendChild(el('span', 'item-sub', f.moved ? 'Moved to ' + f.moved : f.grade === 'none' ? f.why : fileFacts(f)));
     b.appendChild(m);
     b.appendChild(el('span', 'tag ' + (f.grade === 'good' ? 'tag-good' : f.grade === 'fine' ? 'tag-warn' : f.grade === 'low' ? 'tag-bad' : 'tag-muted'), f.label));
     b.addEventListener('click', function () { check.open = check.open === idx ? null : idx; renderCheck(); });
@@ -1130,7 +1268,7 @@
   });
   window.addEventListener('dragover', function (e) { e.preventDefault(); });
   window.addEventListener('drop', function (e) { e.preventDefault(); });
-  $('check-clear').addEventListener('click', function () { check.files = []; check.open = null; $('check-results').hidden = true; $('check-run').hidden = true; });
+  $('check-clear').addEventListener('click', function () { closeMove(); check.files = []; check.open = null; $('check-results').hidden = true; $('check-run').hidden = true; });
   if (IOS || !('webkitdirectory' in document.createElement('input'))) { $('folder-label').hidden = true; $('drop').querySelector('strong').textContent = 'Choose files to check'; }
   else $('drop-hint').textContent = 'Point it at a whole folder of your DJ drive, or drop files here. WAV, AIFF, FLAC, MP3 and M4A.';
 

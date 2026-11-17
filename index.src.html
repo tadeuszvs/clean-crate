@@ -156,6 +156,14 @@ a.item:hover { background: var(--paper); }
 .sel-acts button { background: transparent; color: inherit; border-color: currentColor; padding: 8px 12px; font-size: 13.5px; border-radius: 10px; }
 .sel-acts .sel-danger { background: var(--bad); border-color: var(--bad); color: #FFFFFF; }
 .track.selected { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.move-panel { margin: 4px 0 18px; padding: 20px; border-radius: 20px; background: var(--panel); border: 1.5px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+.move-panel h3 { margin: 0; }
+.move-steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+.move-map { max-height: 320px; overflow-y: auto; font-size: 13px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--paper); }
+.move-map div { padding: 5px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.move-map div:first-child { border-top: 0; }
+.move-map .to { color: var(--muted); }
+.btn-danger { background: var(--bad); color: #FFFFFF; }
 .mixbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 14px 16px; border-radius: 16px; background: var(--ink); color: var(--paper); }
 .mixbar button { background: transparent; color: inherit; border-color: currentColor; padding: 8px 12px; font-size: 13.5px; }
 .empty { color: var(--muted); padding: 26px 20px; border: 1.5px dashed var(--line); border-radius: 18px; }
@@ -366,6 +374,7 @@ canvas.spec { width: 100%; height: 170px; display: block; }
       <div class="grades" id="grades" role="group" aria-label="Show files by quality"></div>
       <p class="hint" id="grade-help"></p>
       <div class="row" id="check-actions"></div>
+      <div class="move-panel" id="move-panel" hidden></div>
       <div class="list" id="file-list"></div>
       <div class="row"><button class="ghost" type="button" id="check-clear">Clear results</button></div>
     </div>
