@@ -2,6 +2,7 @@
  * Clean Crate lookup helper (Cloudflare Worker).
  * GET /?q=Artist%20-%20Title  ->  JSON with what each store has, prices, free downloads, and track details.
  * Reads public store pages and public APIs, one search at a time, with results cached for 6 hours.
+ * GET/PUT /sync?key=...  ->  stores one crate per sync key in Workers KV (binding: CRATE).
  */
 
 const ALLOWED_ORIGINS = ['https://tadeuszvs.github.io', 'http://localhost:8000', 'http://127.0.0.1:8000'];
@@ -15,11 +16,13 @@ export default {
     const origin = request.headers.get('Origin') || '';
     const cors = {
       'Access-Control-Allow-Origin': ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0],
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
       'Vary': 'Origin'
     };
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
     const url = new URL(request.url);
+    if (url.pathname === '/sync') return sync(request, url, env, cors);
     const q = (url.searchParams.get('q') || '').trim().slice(0, 200);
     if (!q) return json({ error: 'Add ?q=Artist - Title' }, 400, cors);
 
@@ -56,6 +59,32 @@ export default {
     return new Response(body, { headers: { ...cors, 'Content-Type': 'application/json', 'X-Cache': 'miss' } });
   }
 };
+
+/* ---------------- crate sync ---------------- */
+
+const MAX_CRATE_BYTES = 1024 * 1024;
+
+async function sync(request, url, env, cors) {
+  if (!env.CRATE) return json({ error: 'Sync storage is not set up' }, 503, cors);
+  const key = url.searchParams.get('key') || '';
+  if (!/^[A-Za-z0-9_-]{24,64}$/.test(key)) return json({ error: 'Bad sync key' }, 400, cors);
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
+  const id = 'crate:' + [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
+  if (request.method === 'GET') {
+    const stored = await env.CRATE.get(id);
+    return new Response(stored || '{"items":[]}', { headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+  }
+  if (request.method === 'PUT') {
+    const body = await request.text();
+    if (body.length > MAX_CRATE_BYTES) return json({ error: 'Crate is too large to sync' }, 413, cors);
+    let data;
+    try { data = JSON.parse(body); } catch (e) { return json({ error: 'Not JSON' }, 400, cors); }
+    if (!data || !Array.isArray(data.items)) return json({ error: 'Expected {items: [...]}' }, 400, cors);
+    await env.CRATE.put(id, JSON.stringify({ items: data.items, savedAt: new Date().toISOString() }));
+    return json({ ok: true }, 200, cors);
+  }
+  return json({ error: 'Use GET or PUT' }, 405, cors);
+}
 
 /* ---------------- helpers ---------------- */
 

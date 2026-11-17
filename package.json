@@ -5,6 +5,6 @@
   "description": "Find lossless sources, check file quality, read tempo and key, keep a crate list.",
   "scripts": {
     "build": "node build.js",
-    "test": "node test-quality-links.js && node test-tempo-key.js"
+    "test": "node test-quality-links.js && node test-tempo-key.js && node test-crate-tools.js"
   }
 }

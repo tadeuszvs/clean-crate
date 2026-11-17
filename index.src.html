@@ -2,19 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Clean Crate</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="Clean Crate">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#14121C">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Music&amp;text=%F0%9D%84%9E&amp;display=block" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;700&amp;family=Montserrat:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
 <style>
-/* Layout idea: one calm column. The only loud thing is the header spectrum that runs into a wall. */
+/* Layout idea: one screen per job (Dig, Crate, Check) behind a phone-style tab bar; the answer is always the biggest thing on screen. */
 :root {
   --paper: #F2F0F7;
   --panel: #FFFFFF;
@@ -26,6 +28,7 @@
   --good: #17794C;
   --warn: #9A6410;
   --bad: #C02A45;
+  --bar: rgba(255, 255, 255, .92);
   --display: "Comfortaa", "Montserrat", system-ui, sans-serif;
   --body: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
@@ -34,244 +37,309 @@
   :root:not([data-theme="light"]) {
     --paper: #13101E; --panel: #1C182D; --ink: #ECE9F6; --muted: #A49EBB; --line: #332D4B;
     --accent: #918EFF; --accent-ink: #13101E; --good: #52C990; --warn: #E3AC52; --bad: #F2708A;
+    --bar: rgba(28, 24, 45, .92);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --paper: #13101E; --panel: #1C182D; --ink: #ECE9F6; --muted: #A49EBB; --line: #332D4B;
   --accent: #918EFF; --accent-ink: #13101E; --good: #52C990; --warn: #E3AC52; --bad: #F2708A;
+  --bar: rgba(28, 24, 45, .92);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.55; }
-.wrap { max-width: 860px; margin: 0 auto; padding: 0 20px 72px; display: flex; flex-direction: column; gap: 56px; }
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.5; padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
 h1, h2, h3, p, ul { margin: 0; }
 ul { padding: 0; list-style: none; }
+[hidden] { display: none !important; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-/* header */
-.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; padding-top: 44px; flex-wrap: wrap; }
-.mark { display: flex; flex-direction: column; gap: 10px; flex: 1 1 300px; }
-h1 { font-family: var(--display); font-weight: 700; font-size: clamp(40px, 9vw, 64px); line-height: 1; letter-spacing: -0.03em; }
-.tag { color: var(--muted); max-width: 44ch; font-weight: 500; }
-.bars { flex: 1 1 240px; max-width: 340px; height: 84px; display: flex; align-items: flex-end; gap: 3px; }
-.bar { flex: 1 1 0; min-width: 2px; background: var(--accent); border-radius: 2px 2px 0 0; }
-.bar.cut { background: var(--line); }
-
-/* sections */
-main { display: flex; flex-direction: column; gap: 56px; }
-section { display: flex; flex-direction: column; gap: 18px; }
-.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+/* frame */
+.top { max-width: 760px; margin: 0 auto; padding: calc(18px + env(safe-area-inset-top)) 20px 8px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.logo { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -0.02em; }
+.view { max-width: 760px; margin: 0 auto; padding: 8px 20px 32px; display: flex; flex-direction: column; gap: 18px; }
 h2 { font-family: var(--display); font-weight: 700; font-size: 26px; letter-spacing: -0.02em; text-wrap: balance; }
-.lede { color: var(--muted); max-width: 62ch; }
 h3 { font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+.hint { font-size: 14px; color: var(--muted); }
+.status { font-size: 14.5px; color: var(--muted); }
+@keyframes pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: no-preference) { .loading { animation: pulse 1.4s ease-in-out infinite; } }
+
+/* tab bar */
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex; justify-content: center; gap: 4px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); background: var(--bar); border-top: 1px solid var(--line); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.tab { flex: 1 1 0; max-width: 180px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; border-radius: 12px; cursor: pointer; position: relative; }
+.tab svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tab[aria-current="page"] { color: var(--accent); }
+.badge { position: absolute; top: 0; left: calc(50% + 8px); min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight: 700; line-height: 19px; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* controls */
-.row { display: flex; gap: 10px; flex-wrap: wrap; }
-input[type="text"], input[type="search"] {
-  flex: 1 1 240px; min-width: 0; font: inherit; color: var(--ink); background: var(--panel);
-  border: 1.5px solid var(--line); border-radius: 12px; padding: 13px 15px;
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+input[type="text"], textarea, select {
+  font: inherit; color: var(--ink); background: var(--panel); border: 1.5px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0;
 }
-input[type="text"]::placeholder { color: var(--muted); opacity: 0.8; }
-button { font: inherit; font-weight: 600; cursor: pointer; border-radius: 12px; border: 1.5px solid transparent; padding: 13px 20px; }
+input[type="text"] { flex: 1 1 240px; font-size: 17px; }
+textarea { width: 100%; min-height: 180px; resize: vertical; line-height: 1.5; }
+select { padding: 10px 12px; font-size: 14px; border-radius: 12px; }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: .85; }
+button, .btn { font: inherit; font-weight: 600; cursor: pointer; border-radius: 14px; border: 1.5px solid transparent; padding: 14px 20px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
 .primary { background: var(--accent); color: var(--accent-ink); }
 .primary:hover { filter: brightness(1.08); }
+.primary:disabled { opacity: .5; cursor: not-allowed; }
 .secondary { background: transparent; color: var(--accent); border-color: var(--accent); }
-.secondary:disabled { color: var(--muted); border-color: var(--line); cursor: not-allowed; }
-.ghost { background: transparent; color: var(--muted); border-color: var(--line); padding: 8px 13px; font-size: 14px; border-radius: 10px; }
+.ghost { background: transparent; color: var(--muted); border-color: var(--line); padding: 9px 14px; font-size: 14px; border-radius: 11px; }
 .ghost:hover { color: var(--ink); border-color: var(--muted); }
 .ghost.danger:hover { color: var(--bad); border-color: var(--bad); }
+.linkish { background: none; border: 0; padding: 4px 0; color: var(--accent); font-weight: 600; font-size: 15px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { padding: 8px 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--panel); color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; text-decoration: none; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.chip .n { font-variant-numeric: tabular-nums; opacity: .75; }
+a.chip::after { content: "\2197"; color: var(--accent); }
 
-.note { font-size: 14.5px; color: var(--muted); border-left: 3px solid var(--line); padding: 2px 0 2px 12px; max-width: 64ch; }
-.note-warn { color: var(--warn); border-left-color: var(--warn); font-weight: 500; }
-.refine { display: flex; flex-direction: column; gap: 12px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 16px; padding: 18px; }
-.refine label { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.chip { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 9px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); }
-.chip-example { color: var(--warn); border-color: var(--warn); }
-@keyframes fresh { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 3px transparent; } }
-@media (prefers-reduced-motion: no-preference) { .refine.fresh { animation: fresh 1.2s ease-out; } }
-.refine.fresh { border-color: var(--accent); }
-
-.groups { display: flex; flex-direction: column; gap: 22px; }
-.group { display: flex; flex-direction: column; gap: 10px; }
-.stores { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 10px; }
-.store { display: flex; flex-direction: column; gap: 3px; padding: 14px 16px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 14px; color: inherit; text-decoration: none; }
-.store:hover { border-color: var(--accent); }
-.store-name { font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.store-name::after { content: "\2197"; color: var(--accent); font-weight: 600; }
-.store-get { font-size: 13.5px; color: var(--muted); line-height: 1.4; }
-
-/* lookup */
+/* dig */
+.search { display: flex; flex-direction: column; gap: 10px; }
+.batch { display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 18px; background: var(--panel); border: 1.5px solid var(--line); }
+.progress { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.progress > span { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .3s; }
 .lookup { display: flex; flex-direction: column; gap: 14px; }
 .lookup:empty { display: none; }
-.best { display: flex; flex-direction: column; gap: 8px; padding: 20px; border-radius: 18px; background: var(--accent); color: var(--accent-ink); }
+.best { display: flex; flex-direction: column; gap: 8px; padding: 20px; border-radius: 20px; background: var(--accent); color: var(--accent-ink); }
+.best.free { background: var(--good); }
 .best-label { font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; opacity: .85; }
 .best-main { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .best-title { font-family: var(--display); font-weight: 700; font-size: 22px; overflow-wrap: anywhere; }
-.best-price { font-family: var(--display); font-weight: 700; font-size: 28px; font-variant-numeric: tabular-nums; }
-.best-sub { font-size: 14px; opacity: .9; }
-.best a { align-self: flex-start; color: var(--accent); background: var(--accent-ink); text-decoration: none; font-weight: 700; padding: 11px 18px; border-radius: 12px; }
+.best-price { font-family: var(--display); font-weight: 700; font-size: 30px; font-variant-numeric: tabular-nums; }
+.best-sub { font-size: 14px; opacity: .92; }
+.best a { align-self: flex-start; color: var(--ink); background: #FFFFFF; text-decoration: none; font-weight: 700; padding: 12px 18px; border-radius: 12px; }
 .facts-line { display: flex; flex-wrap: wrap; gap: 6px 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
-.facts-line span { padding: 3px 9px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); }
-.rows { display: flex; flex-direction: column; border: 1.5px solid var(--line); border-radius: 16px; background: var(--panel); overflow: hidden; }
-.row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
-.row:first-child { border-top: 0; }
-a.row:hover { background: var(--paper); }
-.row-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.row-top { font-weight: 600; overflow-wrap: anywhere; }
-.row-sub { font-size: 13px; color: var(--muted); }
-.row-price { font-family: var(--display); font-weight: 700; font-size: 17px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.row-price.free { color: var(--good); }
-.tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; margin-left: 6px; white-space: nowrap; }
-.tag-exact { color: var(--good); } .tag-version { color: var(--warn); } .tag-lossy { color: var(--muted); }
-.status { font-size: 14.5px; color: var(--muted); }
-@keyframes pulse { 50% { opacity: .45; } }
-@media (prefers-reduced-motion: no-preference) { .status.loading { animation: pulse 1.4s ease-in-out infinite; } }
+.facts-line span { padding: 4px 10px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); }
+.saved { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14.5px; color: var(--good); font-weight: 600; }
+.list { display: flex; flex-direction: column; border: 1.5px solid var(--line); border-radius: 18px; background: var(--panel); overflow: hidden; }
+.item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
+.item:first-child { border-top: 0; }
+a.item:hover { background: var(--paper); }
+.item-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.item-top { font-weight: 600; overflow-wrap: anywhere; }
+.item-sub { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.price { font-family: var(--display); font-weight: 700; font-size: 17px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.price.free { color: var(--good); }
+.tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; margin-left: 6px; white-space: nowrap; display: inline-block; }
+.tag-good { color: var(--good); } .tag-warn { color: var(--warn); } .tag-muted { color: var(--muted); } .tag-bad { color: var(--bad); }
 
-.manual-head { font-size: 18px; margin-top: 8px; }
+/* crate */
+.total { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tile { padding: 14px 16px; border-radius: 16px; background: var(--panel); border: 1.5px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+.tile b { font-family: var(--display); font-size: 24px; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.tile.accent { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tile.accent span { color: inherit; opacity: .85; }
+.crate-tools { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.track { display: flex; align-items: flex-start; gap: 14px; padding: 18px 16px; border-top: 1px solid var(--line); }
+.track:first-child { border-top: 0; }
+.big-check { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 32px; height: 32px; margin: 2px 0 0; border: 2.5px solid var(--muted); border-radius: 9px; background: var(--panel); cursor: pointer; position: relative; }
+.big-check:checked { background: var(--accent); border-color: var(--accent); }
+.big-check:checked::after { content: ""; position: absolute; left: 9px; top: 3px; width: 8px; height: 16px; border: solid var(--accent-ink); border-width: 0 3.5px 3.5px 0; transform: rotate(45deg); }
+.track-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.track-title { font-weight: 700; font-size: 16.5px; overflow-wrap: anywhere; }
+.track.got .track-title { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.track-meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13.5px; color: var(--muted); }
+.pill { font-size: 12.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); font-variant-numeric: tabular-nums; }
+.pill.cam { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pill.ok { color: var(--good); border-color: var(--good); background: transparent; }
+.track-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.track-acts .btn, .track-acts button { padding: 8px 12px; font-size: 13.5px; border-radius: 10px; }
+.mixbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 14px 16px; border-radius: 16px; background: var(--ink); color: var(--paper); }
+.mixbar button { background: transparent; color: inherit; border-color: currentColor; padding: 8px 12px; font-size: 13.5px; }
+.empty { color: var(--muted); padding: 26px 20px; border: 1.5px dashed var(--line); border-radius: 18px; }
+.sync { display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 18px; background: var(--panel); border: 1.5px solid var(--line); }
+.sync-state { font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
+.sync-state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.sync-state.ok { color: var(--good); } .sync-state.bad { color: var(--bad); }
+.code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; padding: 10px 12px; border-radius: 10px; background: var(--paper); border: 1px solid var(--line); overflow-wrap: anywhere; }
 
-/* checker */
-.drop { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 34px 20px; border: 2px dashed var(--line); border-radius: 18px; background: var(--panel); cursor: pointer; }
-.drop:hover, .drop.over { border-color: var(--accent); }
+/* check */
+.drop { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 28px 18px; border: 2px dashed var(--line); border-radius: 20px; background: var(--panel); }
+.drop.over { border-color: var(--accent); }
 .drop strong { font-size: 17px; }
-.drop span { color: var(--muted); font-size: 14.5px; }
 .drop input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.drop:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
-.results { display: flex; flex-direction: column; gap: 14px; }
-.result { display: flex; flex-direction: column; gap: 10px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 16px; padding: 18px; }
-.result-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.result-name { font-size: 16px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ink); overflow-wrap: anywhere; }
-.result-detail { color: var(--muted); max-width: 66ch; font-size: 15px; }
-.pill { font-size: 12.5px; font-weight: 700; letter-spacing: 0.03em; padding: 5px 11px 5px 9px; border-radius: 999px; border: 1.5px solid currentColor; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px; }
-.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-.pill-good { color: var(--good); } .pill-warn { color: var(--warn); } .pill-bad { color: var(--bad); }
-.pill-bad::before { border-radius: 1px; } .pill-warn::before { border-radius: 1px; transform: rotate(45deg); }
-.pill-info, .pill-wait { color: var(--muted); }
-.dj { display: flex; flex-wrap: wrap; gap: 10px 28px; padding: 12px 0 4px; border-top: 1.5px solid var(--line); }
-.dj-item { display: flex; flex-direction: column; gap: 1px; min-width: 150px; }
+.grades { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.grade-tile { padding: 14px; border-radius: 16px; border: 1.5px solid var(--line); background: var(--panel); text-align: left; display: flex; flex-direction: column; gap: 2px; color: var(--ink); }
+.grade-tile b { font-family: var(--display); font-size: 26px; font-variant-numeric: tabular-nums; }
+.grade-tile span { font-size: 12.5px; font-weight: 700; }
+.grade-tile.good span { color: var(--good); } .grade-tile.fine span { color: var(--warn); } .grade-tile.low span { color: var(--bad); }
+.grade-tile[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.dot { width: 11px; height: 11px; flex: 0 0 auto; border-radius: 50%; margin-top: 6px; }
+.dot.good { background: var(--good); } .dot.fine { background: var(--warn); transform: rotate(45deg); border-radius: 2px; } .dot.low { background: var(--bad); border-radius: 2px; } .dot.none { background: var(--line); }
+.file { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.file:first-child { border-top: 0; }
+.file > button { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 0; border-radius: 0; background: none; color: inherit; text-align: left; font-weight: 400; width: 100%; }
+.file > button:hover { background: var(--paper); }
+.file-detail { padding: 4px 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+canvas.spec { width: 100%; height: 170px; display: block; }
+.legend-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.legend-row span { display: inline-flex; align-items: center; gap: 6px; }
+.legend-row i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; background: var(--accent); }
+.legend-row i.ref { background: none; border-top: 2px dashed var(--muted); height: 0; }
+.legend-row i.gap { height: 10px; background: var(--bad); opacity: .25; }
+.dj { display: flex; flex-wrap: wrap; gap: 10px 28px; }
+.dj-item { display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
 .dj-label { font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
-.dj-value { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.dj-value { font-family: var(--display); font-weight: 700; font-size: 20px; font-variant-numeric: tabular-nums; }
 .dj-alt { font-size: 13px; color: var(--muted); }
-.dj-item { gap: 4px; }
-.key-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.cam { font-family: var(--display); font-weight: 700; font-size: 13px; padding: 2px 9px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-variant-numeric: tabular-nums; }
 .staff { display: block; margin-top: 4px; overflow: visible; }
 .st-line { stroke: var(--muted); stroke-width: 1; opacity: .7; }
 .st-clef { font-family: "Noto Music", "Apple Symbols", "Segoe UI Symbol", serif; font-size: 50px; fill: var(--ink); }
 .st-thin { stroke: var(--ink); stroke-width: 1.2; fill: none; }
 .st-thick { stroke: var(--ink); stroke-width: 2.4; fill: none; }
 .st-flat { stroke: var(--ink); stroke-width: 1.5; fill: none; stroke-linejoin: round; }
-.facts { display: flex; flex-wrap: wrap; gap: 6px 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
-.facts li { padding: 3px 9px; border-radius: 8px; background: var(--paper); color: var(--ink); }
-canvas.spec { width: 100%; height: 150px; display: block; }
-.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
-.legend figure { margin: 0; display: flex; flex-direction: column; gap: 6px; background: var(--panel); border: 1.5px solid var(--line); border-radius: 16px; padding: 14px 16px 10px; }
-.legend figcaption { font-size: 14px; color: var(--muted); }
-.legend figcaption b { color: var(--ink); display: block; font-size: 15px; }
-.legend canvas.spec { height: 104px; }
-.fine { font-size: 13.5px; color: var(--muted); max-width: 70ch; }
 
-/* crate: big boxes, room to breathe */
-.sync { font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; color: var(--muted); }
-.sync::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-.sync-ok { color: var(--good); } .sync-bad { color: var(--bad); }
-.count { color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
-.crate-list { display: flex; flex-direction: column; }
-.track { display: flex; align-items: center; gap: 18px; padding: 22px 4px; border-bottom: 1.5px solid var(--line); flex-wrap: wrap; }
-.track:first-child { border-top: 1.5px solid var(--line); }
-.big-check { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 34px; height: 34px; margin: 0; border: 2.5px solid var(--muted); border-radius: 9px; background: var(--panel); cursor: pointer; position: relative; }
-.big-check:checked { background: var(--accent); border-color: var(--accent); }
-.big-check:checked::after { content: ""; position: absolute; left: 10px; top: 3px; width: 8px; height: 17px; border: solid var(--accent-ink); border-width: 0 3.5px 3.5px 0; transform: rotate(45deg); }
-.track-main { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 3px; cursor: pointer; }
-.track-title { font-weight: 600; font-size: 17px; overflow-wrap: anywhere; }
-.track.got .track-title { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1.5px; }
-.track-meta { font-size: 13.5px; color: var(--muted); }
-.track-acts { display: flex; gap: 8px; }
-.empty { color: var(--muted); padding: 26px 20px; border: 1.5px dashed var(--line); border-radius: 16px; max-width: 62ch; }
-footer { color: var(--muted); font-size: 13.5px; border-top: 1.5px solid var(--line); padding-top: 20px; max-width: 70ch; }
 @media (max-width: 480px) {
-  .wrap, main { gap: 44px; }
-  .top { padding-top: 28px; }
-  .bars { max-width: none; height: 60px; }
-  .row button { flex: 1 1 100%; }
+  .view { padding: 4px 16px 28px; }
+  .top { padding-left: 16px; padding-right: 16px; }
+  .search button.primary { width: 100%; }
+  .total, .grades { gap: 8px; }
+  .tile, .grade-tile { padding: 12px; }
+  .tile b, .grade-tile b { font-size: 21px; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .store, .drop, button, .big-check { transition: border-color .15s, background-color .15s, color .15s, filter .15s; }
+  .chip, button, .big-check, .tab { transition: border-color .15s, background-color .15s, color .15s, filter .15s; }
 }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <div class="mark">
-      <h1>clean crate</h1>
-      <p class="tag">Find the lossless copy. Check the files you already have. Keep the list in one place.</p>
-    </div>
-    <div class="bars" id="bars" aria-hidden="true"></div>
-  </header>
+<header class="top">
+  <span class="logo">clean crate</span>
+  <span class="sync-state" id="sync-dot">This device</span>
+</header>
 
-  <main>
-    <section id="find" aria-labelledby="h-find">
-      <h2 id="h-find">Find a track</h2>
-      <p class="lede">Type the artist and title, or paste an Apple Music or SoundCloud link. Clean Crate checks the stores that sell lossless files and shows you the cheapest option, free downloads, and the track’s BPM and key.</p>
-      <form id="find-form" class="row" autocomplete="off">
-        <label class="sr" for="find-input">Link, or artist and title</label>
+<main>
+  <!-- DIG -->
+  <section class="view" id="view-dig" aria-labelledby="h-dig">
+    <h1 class="sr" id="h-dig">Dig</h1>
+    <form class="search" id="find-form" autocomplete="off">
+      <label class="sr" for="find-input">Artist - Title, or a link</label>
+      <div class="row">
         <input type="text" id="find-input" placeholder="Artist - Title, or paste a link" enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <button class="primary" type="submit" id="find-go">Find sources</button>
-      </form>
-      <p class="note" id="find-note" hidden></p>
-      <div class="refine" id="find-refine" hidden>
-        <label for="find-query">Searching for <span class="chip" id="find-source"></span></label>
-        <div class="row">
-          <input type="text" id="find-query" enterkeyhint="done" autocapitalize="off" autocorrect="off" spellcheck="false">
-          <button class="secondary" type="button" id="add-crate">Add to crate</button>
+        <button class="primary" type="submit" id="find-go">Find it</button>
+      </div>
+      <div class="row">
+        <button class="linkish" type="button" id="batch-toggle" aria-expanded="false" aria-controls="batch">Paste a whole tracklist</button>
+      </div>
+    </form>
+
+    <div class="batch" id="batch" hidden>
+      <label for="batch-input"><h3>One track per line</h3></label>
+      <textarea id="batch-input" placeholder="Daye Jack - Easy&#10;Kaytranada - Glowed Up&#10;Floating Points - Vocoder" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <div class="row">
+        <button class="primary" type="button" id="batch-go" disabled>Look up tracks</button>
+        <span class="hint" id="batch-count"></span>
+      </div>
+      <div id="batch-run" hidden>
+        <div class="progress" aria-hidden="true"><span id="batch-bar"></span></div>
+        <p class="status" id="batch-status" aria-live="polite"></p>
+      </div>
+    </div>
+
+    <p class="note-warn status" id="find-note" hidden></p>
+    <div class="lookup" id="lookup" aria-live="polite"></div>
+    <div id="manual" hidden>
+      <h3>Search other stores</h3>
+      <div class="chips" id="manual-links" style="margin-top: 10px"></div>
+    </div>
+    <div id="dig-empty">
+      <p class="hint">Type a track and Clean Crate checks Beatport, Bandcamp and Apple for you, finds the cheapest lossless copy, and saves it to your crate with its BPM and key.</p>
+      <div id="recent" style="margin-top: 16px"></div>
+    </div>
+  </section>
+
+  <!-- CRATE -->
+  <section class="view" id="view-crate" aria-labelledby="h-crate" hidden>
+    <h2 id="h-crate">Your crate</h2>
+    <div class="total" id="totals"></div>
+    <div class="mixbar" id="mixbar" hidden>
+      <span id="mix-label"></span>
+      <button type="button" id="mix-clear">Show all</button>
+    </div>
+    <div class="crate-tools" id="crate-tools">
+      <div class="chips" id="filters" role="group" aria-label="Show"></div>
+      <label class="row" style="gap: 8px"><span class="hint">Sort</span>
+        <select id="sort">
+          <option value="new">Newest</option>
+          <option value="price">Cheapest</option>
+          <option value="bpm">BPM</option>
+          <option value="key">Key (Camelot)</option>
+        </select>
+      </label>
+    </div>
+    <div class="list" id="crate-list"></div>
+    <p class="empty" id="crate-empty">Nothing here yet. Every track you look up on Dig lands here with its price, BPM and key.</p>
+    <div class="row">
+      <button class="ghost" type="button" id="recheck-all">Re-check prices</button>
+      <button class="ghost" type="button" id="copy-list">Copy list</button>
+    </div>
+    <div class="sync" id="sync-card">
+      <h3>Your crate on every device</h3>
+      <p class="hint" id="sync-text"></p>
+      <div id="sync-off" class="row" hidden>
+        <button class="secondary" type="button" id="sync-start">Turn on sync</button>
+      </div>
+      <div id="sync-on" hidden>
+        <p class="hint" style="margin-bottom: 8px">Open this link once on each phone or computer to connect it. Keep it private: anyone with the link can see and change your crate.</p>
+        <p class="code" id="sync-link"></p>
+        <div class="row" style="margin-top: 10px">
+          <button class="ghost" type="button" id="sync-copy">Copy link</button>
+          <button class="ghost danger" type="button" id="sync-stop">Stop syncing this device</button>
         </div>
       </div>
-      <div class="lookup" id="lookup" aria-live="polite"></div>
-      <h2 class="manual-head" id="manual-head" hidden>Search the other stores yourself</h2>
-      <div class="groups" id="find-result"></div>
-    </section>
-
-    <section id="check" aria-labelledby="h-check">
-      <h2 id="h-check">Check your files</h2>
-      <p class="lede">See whether a file is full-quality audio or a compressed stream saved in a bigger container, and get its tempo and key. The check runs on this device. Nothing is uploaded.</p>
-      <label class="drop" id="drop" for="file-input">
-        <strong>Drop audio files here, or tap to choose</strong>
-        <span>WAV, AIFF, FLAC, MP3 or M4A. Several at once is fine.</span>
-        <input type="file" id="file-input" multiple accept="audio/*,.wav,.aif,.aiff,.flac,.mp3,.m4a,.ogg,.opus">
-      </label>
-      <div class="results" id="check-results" aria-live="polite"></div>
-      <h3 id="check-empty">How to read a result</h3>
-      <div class="legend">
-        <figure>
-          <canvas class="spec" id="ref-full" role="img" aria-label="Illustration: frequency content sloping gently all the way to 22 kilohertz"></canvas>
-          <figcaption><b>Lossless</b>Content tapers off naturally and reaches the top of the range. Illustration.</figcaption>
-        </figure>
-        <figure>
-          <canvas class="spec" id="ref-lossy" role="img" aria-label="Illustration: frequency content that stops dead at 16 kilohertz"></canvas>
-          <figcaption><b>Lossy source</b>Content stops dead at a wall. The encoder threw the rest away. Illustration.</figcaption>
-        </figure>
+      <div class="row" id="sync-join-row">
+        <label class="sr" for="sync-join">Paste a sync link</label>
+        <input type="text" id="sync-join" placeholder="Paste a sync link from another device" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <button class="ghost" type="button" id="sync-join-go">Connect</button>
       </div>
-      <p class="fine">Limits: this finds the cutoff that MP3 and most AAC encoders leave. High-bitrate AAC, about 256 kbps, sometimes leaves no visible cutoff and can pass. A pass means consistent with lossless. Where the file came from is still the best evidence.</p>
-      <p class="fine">Tempo and key are estimates. Tempo is reported between 88 and 176 BPM, with the half or double reading beside it when that is plausible. Keys show in standard notation (name and key signature) and Camelot. The usual miss is the relative major or minor, which shares the same Camelot number and signature, and still mixes.</p>
-    </section>
+    </div>
+  </section>
 
-    <section id="crate" aria-labelledby="h-crate">
-      <div class="sec-head">
-        <h2 id="h-crate">Your crate</h2>
-        <span class="sync sync-local" id="sync">Saved on this device only</span>
+  <!-- CHECK -->
+  <section class="view" id="view-check" aria-labelledby="h-check" hidden>
+    <h2 id="h-check">Check your files</h2>
+    <p class="hint">Find out which files hold up on a big system and which are compressed copies. Everything is checked on this device; nothing is uploaded.</p>
+    <div class="drop" id="drop">
+      <strong>Drop a folder or files here</strong>
+      <div class="row" style="justify-content: center">
+        <label class="btn primary" for="folder-input" id="folder-label">Choose a folder</label>
+        <label class="btn secondary" for="file-input">Choose files</label>
       </div>
-      <p class="count" id="crate-count"></p>
-      <ul class="crate-list" id="crate-list"></ul>
-      <p class="empty" id="crate-empty">Nothing here yet. Find a track above and choose Add to crate. Tick the box once the file is in your library.</p>
-      <div class="row"><button class="ghost" type="button" id="copy-list" hidden>Copy list</button></div>
-    </section>
-  </main>
+      <input type="file" id="folder-input" webkitdirectory directory multiple>
+      <input type="file" id="file-input" multiple accept="audio/*,.wav,.aif,.aiff,.flac,.mp3,.m4a,.aac,.ogg,.opus,.alac">
+      <span class="hint" id="drop-hint">WAV, AIFF, FLAC, MP3 and M4A. On iPhone, pick files from the Files app.</span>
+    </div>
+    <div id="check-run" hidden>
+      <div class="progress" aria-hidden="true"><span id="check-bar"></span></div>
+      <p class="status" id="check-status" aria-live="polite"></p>
+    </div>
+    <div id="check-results" hidden>
+      <div class="grades" id="grades" role="group" aria-label="Show files by quality"></div>
+      <p class="hint" id="grade-help"></p>
+      <div class="row" id="check-actions"></div>
+      <div class="list" id="file-list"></div>
+      <div class="row"><button class="ghost" type="button" id="check-clear">Clear results</button></div>
+    </div>
+  </section>
+</main>
 
-  <footer>Clean Crate points you to places that sell or give away files you can keep. It does not download from streaming services.</footer>
-</div>
+<nav class="tabs" aria-label="Sections">
+  <button class="tab" type="button" data-view="dig" aria-current="page">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>Dig
+  </button>
+  <button class="tab" type="button" data-view="crate">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="5.5"/><circle cx="12" cy="9" r="1.2"/><path d="M4 13.5h16v6.5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M8.5 17.5h7"/></svg>Crate<span class="badge" id="crate-badge" hidden></span>
+  </button>
+  <button class="tab" type="button" data-view="check">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18V14M7 18V9M11 18V6M15 18V10M19 18v-1"/><path d="M17 4v16" stroke-dasharray="2 2.2"/></svg>Check
+  </button>
+</nav>
 <script>
 /*CORE*/
 </script>

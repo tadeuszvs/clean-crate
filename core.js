@@ -102,8 +102,9 @@
         if (tag === 0xFFFE && size >= 26) tag = dv.getUint16(body + 24, true);
         fmt = { tag: tag, ch: dv.getUint16(body + 2, true), sr: dv.getUint32(body + 4, true), align: dv.getUint16(body + 12, true), bits: dv.getUint16(body + 14, true) };
       } else if (id === 'data') {
+        var declared = size;
         if (size === 0 || size > dv.byteLength - body) size = dv.byteLength - body;
-        data = { offset: body, size: size };
+        data = { offset: body, size: size, declared: declared };
         break;
       }
       o = body + size + (size & 1);
@@ -113,7 +114,8 @@
     var bytes = fmt.align / fmt.ch;
     if ([1, 2, 3, 4, 8].indexOf(bytes) < 0) return null;
     return { container: 'WAV', lossless: true, sampleRate: fmt.sr, channels: fmt.ch, bits: fmt.bits, float: fmt.tag === 3,
-      littleEndian: true, signed8: false, offset: data.offset, frames: Math.floor(data.size / fmt.align), blockAlign: fmt.align, bytes: bytes };
+      littleEndian: true, signed8: false, offset: data.offset, frames: Math.floor(data.size / fmt.align), blockAlign: fmt.align, bytes: bytes,
+      declaredFrames: data.declared ? Math.floor(data.declared / fmt.align) : null };
   };
 
   function ext80(dv, o) {
@@ -146,7 +148,8 @@
     if ([1, 2, 3, 4, 8].indexOf(bytes) < 0) return null;
     var align = bytes * comm.ch;
     return { container: 'AIFF', lossless: true, sampleRate: Math.round(comm.sr), channels: comm.ch, bits: comm.bits, float: isFloat,
-      littleEndian: c === 'sowt', signed8: true, offset: ssnd.offset, frames: Math.min(comm.frames, Math.floor(ssnd.size / align)), blockAlign: align, bytes: bytes };
+      littleEndian: c === 'sowt', signed8: true, offset: ssnd.offset, frames: Math.min(comm.frames, Math.floor(ssnd.size / align)), blockAlign: align, bytes: bytes,
+      declaredFrames: comm.frames };
   };
 
   /* Returns (startFrame, N) => Float32Array of mono samples in [-1, 1]. */
@@ -510,6 +513,129 @@
       return (order[a.match] || 0) - (order[b.match] || 0) || (a.free === b.free ? 0 : a.free ? -1 : 1);
     });
     return vm;
+  };
+
+  /* ---------- keys and mixing ---------- */
+  var NOTE_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  /* "Bb Minor", "F# maj", "A♭ minor" -> describeKey(...) or null */
+  C.keyFromName = function (name) {
+    var m = String(name || '').trim().match(/^([A-Ga-g])\s*([#♯b♭]?)\s*(maj(?:or)?|min(?:or)?|m)?\b/i);
+    if (!m) return null;
+    var pc = NOTE_PC[m[1].toUpperCase()];
+    if (m[2] === '#' || m[2] === '♯') pc += 1; else if (m[2] === 'b' || m[2] === '♭') pc -= 1;
+    pc = (pc + 12) % 12;
+    var minor = !!m[3] && /^m(in)?/i.test(m[3]) && !/^maj/i.test(m[3]);
+    return C.describeKey(pc, minor);
+  };
+  function camParts(cam) { var m = String(cam || '').match(/^(\d{1,2})([AB])$/); return m ? { n: +m[1], l: m[2] } : null; }
+  /* Harmonic mixing: same key, one step around the wheel, or the relative major/minor. */
+  C.keysMix = function (a, b) {
+    var x = camParts(a), y = camParts(b);
+    if (!x || !y) return false;
+    if (x.n === y.n) return true;
+    if (x.l !== y.l) return false;
+    var d = Math.abs(x.n - y.n);
+    return d === 1 || d === 11;
+  };
+  /* Tempos within 6%, counting half and double time. */
+  C.bpmsMix = function (a, b) {
+    if (!a || !b) return false;
+    return [b, b * 2, b / 2].some(function (t) { return Math.abs(t - a) / a <= 0.06; });
+  };
+
+  /* ---------- pasted tracklists ---------- */
+  C.parseTracklist = function (text) {
+    var seen = {}, out = [];
+    String(text || '').split(/\r?\n/).forEach(function (line) {
+      var s = line.trim()
+        .replace(/^[\-*•·>]+\s*/, '')
+        .replace(/^\[?\(?\d{1,2}:\d{2}(:\d{2})?\)?\]?\s*[-–—]?\s*/, '')
+        .replace(/^(\d{1,3}|[A-Z]\d?)\s*[.)\]:]\s*/, '')
+        .replace(/^\d{1,3}\s+[-–—]\s+/, '')
+        .replace(/\s*\[?\(?\d{1,2}:\d{2}(:\d{2})?\)?\]?$/, '')
+        .replace(/\s+/g, ' ').trim();
+      if (s.length < 3 || /^(track ?list|setlist|playlist|id - id|id)$/i.test(s)) return;
+      var k = s.toLowerCase();
+      if (seen[k]) return;
+      seen[k] = 1; out.push(s);
+    });
+    return out.slice(0, 200);
+  };
+
+  /* ---------- crate merging (newest edit of each track wins) ---------- */
+  C.mergeCrates = function (a, b) {
+    var map = {};
+    (a || []).concat(b || []).forEach(function (it) {
+      if (!it || !it.id) return;
+      var cur = map[it.id];
+      if (!cur || (it.updatedAt || 0) > (cur.updatedAt || 0)) map[it.id] = it;
+    });
+    return Object.keys(map).map(function (k) { return map[k]; });
+  };
+  C.crateKey = function (q) { return String(q || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); };
+
+  /* ---------- file grades for the sound-system check ---------- */
+  C.grade = function (info, wall, sr, mp3) {
+    var cutoff = wall ? wall.freq : null;
+    var lowRate = sr && sr < 44000;
+    var lowBitrate = mp3 && mp3.kbps && mp3.kbps < 256;
+    if (lowRate) return { grade: 'low', label: 'Low quality', why: 'Sample rate is ' + (sr / 1000) + ' kHz, below CD quality.' };
+    if (cutoff !== null && cutoff < 19400) {
+      var src = mp3 && mp3.kbps && !info.lossless ? info.container + ' at ' + (mp3.vbr ? 'about ' : '') + mp3.kbps + ' kbps.'
+        : info.lossless ? 'This is a compressed file saved as ' + info.container + ', probably from ' + (cutoff < 17500 ? 'a 128 kbps' : 'a 160–192 kbps') + ' source.'
+        : 'Typical of a ' + (cutoff < 17500 ? '128 kbps' : '160–192 kbps') + ' encode.';
+      return { grade: 'low', label: 'Low quality', why: 'Nothing above ' + khz(cutoff) + '. ' + src + ' On a big system the top end sounds dull, and compression artifacts are easier to hear at high volume.' };
+    }
+    if (lowBitrate && !info.lossless) return { grade: 'low', label: 'Low quality', why: info.container + ' at about ' + mp3.kbps + ' kbps. Fine on headphones, thin on a club system.' };
+    if (info.lossless === false || (cutoff !== null && cutoff < 20900)) return { grade: 'fine', label: 'Good enough', why: (info.lossless ? 'A high-bitrate compressed file saved as ' + info.container : 'High-bitrate ' + info.container + (mp3 && mp3.kbps ? ' (' + mp3.kbps + ' kbps)' : '')) + (cutoff ? ', content to ' + khz(cutoff) : '') + '. Hard to tell from lossless on most systems; a lossless copy is safer for heavy EQ, pitching or sampling.' };
+    return { grade: 'good', label: 'Club ready', why: 'Full-bandwidth ' + info.container + (info.bits ? ', ' + info.bits + '-bit' : '') + '. Nothing cut off.' };
+  };
+
+  /* ---------- MP3 bitrate and ID3 tags ---------- */
+  function id3Size(u8) { return u8.length > 10 && u8[0] === 0x49 && u8[1] === 0x44 && u8[2] === 0x33 ? 10 + ((u8[6] & 127) << 21 | (u8[7] & 127) << 14 | (u8[8] & 127) << 7 | (u8[9] & 127)) : 0; }
+  var BR1 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320], SR1 = [44100, 48000, 32000];
+  /* Reads the first MPEG-1 Layer III frame; uses the Xing/Info frame count for an average when the file is VBR. */
+  C.mp3Info = function (buf, fileSize) {
+    var u8 = new Uint8Array(buf), i = id3Size(u8), end = Math.min(u8.length - 4, i + 65536);
+    for (; i < end; i++) {
+      if (u8[i] !== 0xFF || (u8[i + 1] & 0xFE) !== 0xFA) continue;  // MPEG-1, Layer III
+      var bi = u8[i + 2] >> 4, si = (u8[i + 2] >> 2) & 3;
+      if (bi === 0 || bi === 15 || si === 3) continue;
+      var kbps = BR1[bi], sr = SR1[si], mono = (u8[i + 3] >> 6) === 3;
+      var x = i + 4 + (mono ? 17 : 32), tag = String.fromCharCode(u8[x], u8[x + 1], u8[x + 2], u8[x + 3]);
+      var vbr = false;
+      if ((tag === 'Xing' || tag === 'Info') && (u8[x + 7] & 1)) {
+        var frames = (u8[x + 8] << 24 | u8[x + 9] << 16 | u8[x + 10] << 8 | u8[x + 11]) >>> 0;
+        if (frames > 0 && fileSize) { kbps = Math.round(fileSize * 8 / (frames * 1152 / sr) / 1000); vbr = tag === 'Xing'; }
+      }
+      return { kbps: kbps, sampleRate: sr, vbr: vbr };
+    }
+    return null;
+  };
+  C.id3Tags = function (buf) {
+    var u8 = new Uint8Array(buf), size = id3Size(u8);
+    if (!size) return null;
+    var ver = u8[3], p = 10, out = {};
+    if (u8[5] & 0x40) p += ver === 4 ? (u8[10] << 21 | u8[11] << 14 | u8[12] << 7 | u8[13]) : 4 + (u8[10] << 24 | u8[11] << 16 | u8[12] << 8 | u8[13]);
+    while (p + 10 < Math.min(size, u8.length)) {
+      var id = String.fromCharCode(u8[p], u8[p + 1], u8[p + 2], u8[p + 3]);
+      if (!/^[A-Z0-9]{4}$/.test(id)) break;
+      var len = ver === 4 ? (u8[p + 4] << 21 | u8[p + 5] << 14 | u8[p + 6] << 7 | u8[p + 7]) : (u8[p + 4] << 24 | u8[p + 5] << 16 | u8[p + 6] << 8 | u8[p + 7]);
+      if (len <= 0 || p + 10 + len > u8.length) break;
+      if (id === 'TIT2' || id === 'TPE1') {
+        var enc = u8[p + 10], body = u8.subarray(p + 11, p + 10 + len), s = '';
+        try { s = new TextDecoder(enc === 1 ? 'utf-16' : enc === 2 ? 'utf-16be' : enc === 3 ? 'utf-8' : 'latin1').decode(body); } catch (e) { s = ''; }
+        out[id === 'TIT2' ? 'title' : 'artist'] = s.replace(/\u0000+$/g, '').replace(/\u0000/g, ' / ').trim();
+      }
+      p += 10 + len;
+    }
+    return out.title || out.artist ? out : null;
+  };
+  /* "03 - Artist - Title (Extended Mix).wav" -> "Artist - Title (Extended Mix)" */
+  C.queryFromFile = function (name, tags) {
+    if (tags && tags.title) return (tags.artist ? tags.artist + ' - ' : '') + tags.title;
+    return String(name || '').replace(/\.[a-z0-9]{2,4}$/i, '').replace(/_/g, ' ')
+      .replace(/^\s*\d{1,3}\s*[-.)]?\s+/, '').replace(/\s+/g, ' ').trim();
   };
 
   C.khz = khz;
