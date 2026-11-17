@@ -114,7 +114,7 @@
 
   /* =========================================================== crate data */
   var LS = 'clean-crate-v2', LS1 = 'clean-crate-v1', LS_SYNC = 'clean-crate-sync';
-  var state = { items: [], filter: 'all', sort: 'new', mix: null };
+  var state = { items: [], filter: 'all', sort: 'new', mix: null, sel: {}, undo: null };
   var remote = { mode: 'local', col: null, key: null, timer: null, pending: false };
 
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -249,6 +249,7 @@
       var r0 = vm.rows.filter(function (r) { return !r.none && r.lossless; })[0];
       item.lead = { store: r0.store, url: r0.url };
     } else item.lead = null;
+    if (!vm.facts && data.best && data.best.artist && data.best.title && !item.title) { item.title = data.best.title; item.artist = data.best.artist; }
     if (vm.facts) {
       item.title = vm.facts.title || item.title; item.artist = vm.facts.artist || item.artist;
       item.bpm = vm.facts.bpm || item.bpm || null;
@@ -728,9 +729,13 @@
   function trackRow(i, anchor) {
     var g = group(i);
     var row = el('div', 'track' + (g === 'got' ? ' got' : ''));
-    var cb = el('input', 'big-check'); cb.type = 'checkbox'; cb.id = 'got-' + i.id; cb.checked = g === 'got';
-    cb.setAttribute('aria-label', 'In my library: ' + displayName(i));
-    cb.addEventListener('change', function () { i.status = cb.checked ? 'got' : 'get'; commit(i); });
+    var cb = el('input', 'big-check'); cb.type = 'checkbox'; cb.id = 'sel-' + i.id; cb.checked = !!state.sel[i.id];
+    if (cb.checked) row.classList.add('selected');
+    cb.setAttribute('aria-label', 'Select ' + displayName(i));
+    cb.addEventListener('change', function () {
+      if (cb.checked) state.sel[i.id] = 1; else delete state.sel[i.id];
+      row.classList.toggle('selected', cb.checked); renderSelbar();
+    });
     var main = el('div', 'track-main');
     var title = el('button', 'track-title', displayName(i)); title.type = 'button';
     title.setAttribute('aria-label', displayName(i) + ', see every place to get it');
@@ -796,13 +801,52 @@
     } else {
       shown = sorted(items.filter(function (i) { return inFilter(i, state.filter); }));
     }
+    var live = {}; items.forEach(function (i) { live[i.id] = 1; });
+    Object.keys(state.sel).forEach(function (id) { if (!live[id]) delete state.sel[id]; });
+    state.shownIds = shown.map(function (i) { return i.id; });
     shown.forEach(function (i) { list.appendChild(trackRow(i, anchor)); });
+    renderSelbar();
     $('crate-list').hidden = !shown.length;
     $('crate-empty').hidden = !!shown.length;
     $('crate-empty').textContent = items.length ? 'Nothing in this view.' : 'Nothing here yet. Every track you look up on Dig lands here with its price, BPM and key.';
     $('copy-list').hidden = $('recheck-all').hidden = !items.length;
     renderSync();
   }
+  var undoTimer = null;
+  function selectedItems() { return Object.keys(state.sel).map(getItem).filter(function (i) { return i && !i.deleted; }); }
+  function renderSelbar(msg, undo) {
+    var sel = selectedItems(), bar = $('selbar');
+    if (msg) { clearTimeout(undoTimer); state.undo = { msg: msg, fn: undo }; undoTimer = setTimeout(function () { state.undo = null; renderSelbar(); }, 7000); }
+    if (sel.length) state.undo = null;
+    var u = state.undo;
+    ['sel-all', 'sel-got', 'sel-del'].forEach(function (id) { $(id).hidden = !!u; });
+    $('sel-clear').textContent = u ? 'Undo' : 'Cancel';
+    if (u) { bar.hidden = false; $('sel-count').textContent = u.msg; return; }
+    bar.hidden = !sel.length;
+    if (!sel.length) return;
+    $('sel-count').textContent = sel.length + (sel.length === 1 ? ' track selected' : ' tracks selected');
+    $('sel-all').hidden = sel.length >= (state.shownIds || []).length;
+    $('sel-got').textContent = sel.every(function (i) { return i.status === 'got'; }) ? 'Mark as not got' : 'Mark as got';
+  }
+  $('sel-all').addEventListener('click', function () { (state.shownIds || []).forEach(function (id) { state.sel[id] = 1; }); renderCrate(); });
+  $('sel-clear').addEventListener('click', function () {
+    var u = state.undo; state.undo = null; clearTimeout(undoTimer);
+    if (u) u.fn(); else state.sel = {};
+    renderCrate();
+  });
+  $('sel-got').addEventListener('click', function () {
+    var sel = selectedItems(), to = sel.every(function (i) { return i.status === 'got'; }) ? 'get' : 'got';
+    sel.forEach(function (i) { i.status = to; commit(i); });
+    state.sel = {}; renderCrate();
+  });
+  $('sel-del').addEventListener('click', function () {
+    var sel = selectedItems(); if (!sel.length) return;
+    sel.forEach(function (i) { removeItem(i); });
+    state.sel = {}; renderCrate();
+    renderSelbar('Deleted ' + sel.length + (sel.length === 1 ? ' track' : ' tracks'), function () {
+      sel.forEach(function (i) { i.deleted = false; commit(i); });
+    });
+  });
   $('sort').addEventListener('change', function () { state.sort = this.value; renderCrate(); });
   $('mix-clear').addEventListener('click', function () { state.mix = null; renderCrate(); });
   $('copy-list').addEventListener('click', function () {
