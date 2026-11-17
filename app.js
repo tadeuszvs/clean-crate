@@ -307,7 +307,8 @@
     var b = el('button', 'sug'); b.type = 'button'; b.setAttribute('role', 'option');
     b.appendChild(cover(t.cover, ''));
     var m = el('div', 'item-main');
-    m.appendChild(el('span', 'item-top', t.title + (t.explicit ? ' 🅴' : '')));
+    var tt = el('span', 'item-top', t.title); if (t.explicit) tt.appendChild(el('span', 'tag tag-muted', 'E'));
+    m.appendChild(tt);
     m.appendChild(el('span', 'item-sub', [t.artist, t.album, t.duration ? fmtTime(t.duration) : null].filter(Boolean).join(' · ')));
     b.appendChild(m);
     b.addEventListener('mousedown', function (e) { e.preventDefault(); });
@@ -459,7 +460,7 @@
     box.appendChild(bar);
     var opts = el('div'); box.appendChild(opts);
     renderOptions(opts, item);
-    if (vm.unchecked.length) box.appendChild(el('p', 'status', vm.unchecked.map(Core.storeName).join(', ') + ' can’t be priced automatically, so they open as searches.'));
+    if (vm.unchecked.length) box.appendChild(el('p', 'status', vm.unchecked.map(Core.storeName).join(', ') + (vm.unchecked.length > 1 ? ' can’t be priced automatically, so they open as searches.' : ' can’t be priced automatically, so it opens as a search.')));
     if (!item.physical) {
       var ph = el('p', 'status loading', 'Looking up CD and vinyl prices…');
       opts.querySelector('.opt-group:nth-child(2) h3') ? opts.insertBefore(ph, opts.childNodes[1]) : opts.appendChild(ph);

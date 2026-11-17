@@ -648,8 +648,11 @@
     var found = item.sources || [];
     var have = {};
     var dig = [], phys = [], free = [], lossy = [], sample = [];
+    var seenUrl = {};
     found.forEach(function (r) {
-      var row = { name: r.store, what: (r.title ? r.title + ' · ' : '') + (r.lossless ? (r.detail || 'Lossless download') : 'AAC 256 kbps, lossy'), price: r.free ? 'Free' : r.price || null, free: !!r.free, url: r.url, auto: true, match: r.match };
+      if (!r.url || seenUrl[r.url]) return; seenUrl[r.url] = 1;
+      var by = r.artist && normTxt(r.artist) !== normTxt(artist) && normTxt(r.title || '').indexOf(normTxt(r.artist)) < 0 ? ' by ' + r.artist : '';
+      var row = { name: r.store, what: (r.title ? r.title + by + ' · ' : '') + (r.lossless ? (r.detail || 'Lossless download') : 'AAC 256 kbps, lossy'), price: r.free ? 'Free' : r.price || null, free: !!r.free, url: r.url, auto: true, match: r.match };
       (r.lossless ? (r.free ? free : dig) : lossy).push(row);
       have[r.store] = 1;
     });
