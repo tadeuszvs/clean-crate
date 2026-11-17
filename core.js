@@ -452,7 +452,7 @@
 
   /* ---------- live lookup ---------- */
   C.HELPER = 'https://clean-crate-lookup.tadeusz-c41.workers.dev/';
-  var STORE_NAMES = { bandcamp: 'Bandcamp', beatport: 'Beatport', qobuz: 'Qobuz', itunes: 'Apple (iTunes)', musicbrainz: 'MusicBrainz' };
+  var STORE_NAMES = { bandcamp: 'Bandcamp', beatport: 'Beatport', qobuz: 'Qobuz', itunes: 'Apple (iTunes)', musicbrainz: 'MusicBrainz' , soundcloud: 'SoundCloud'};
   C.storeName = function (k) { return STORE_NAMES[k] || k; };
   function mmss(s) { if (!s) return null; s = Math.round(s); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
   function normTxt(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
@@ -489,7 +489,7 @@
     }
     if (data && data.best) {
       var b = data.best;
-      vm.best = { store: C.storeName(b.store), title: b.title, artist: b.artist, url: b.url, free: !!b.free, price: b.price ? b.price.display : null, quality: b.quality, match: b.match };
+      vm.best = { store: C.storeName(b.store), title: b.title, artist: b.artist, url: b.url, free: !!b.free, price: b.price ? b.price.display : null, quality: b.quality, match: b.match, via: b.via || null, lossless: b.store !== 'soundcloud' };
     }
     ['bandcamp', 'beatport', 'qobuz'].forEach(function (k) {
       var s = src[k];
@@ -502,6 +502,13 @@
           lossless: true });
       });
       if (s.status === 'none') vm.rows.push({ store: C.storeName(k), none: true });
+    });
+    var sc = src.soundcloud;
+    (sc && sc.items || []).forEach(function (it) {
+      if (it.match === 'possible' && !it.free) return;
+      vm.rows.push({ store: 'SoundCloud', sc: true, title: it.title, artist: it.uploader || it.artist, url: it.free && it.freeUrl ? it.freeUrl : it.url, page: it.url, match: it.match,
+        price: it.free ? 'Free' : null, free: !!it.free, detail: it.how || '', lossless: false, cover: it.cover || null, genre: it.genre || null });
+      if (!vm.cover && it.cover && it.match !== 'possible') vm.cover = it.cover;
     });
     (apple || []).forEach(function (it) {
       vm.rows.push({ store: 'Apple (iTunes)', title: it.title, artist: it.artist, url: it.url, match: it.match, price: it.price ? it.price.display : null, detail: 'AAC 256 kbps, lossy. Shown for reference', lossless: false });
@@ -653,6 +660,7 @@
       if (!r.url || seenUrl[r.url]) return; seenUrl[r.url] = 1;
       var by = r.artist && normTxt(r.artist) !== normTxt(artist) && normTxt(r.title || '').indexOf(normTxt(r.artist)) < 0 ? ' by ' + r.artist : '';
       var row = { name: r.store, what: (r.title ? r.title + by + ' · ' : '') + (r.lossless ? (r.detail || 'Lossless download') : 'AAC 256 kbps, lossy'), price: r.free ? 'Free' : r.price || null, free: !!r.free, url: r.url, auto: true, match: r.match };
+      if (r.sc) { have.SoundCloud = 1; row.what = (r.title || '') + (r.artist ? ' \u00b7 by ' + r.artist : '') + ' \u00b7 ' + (r.detail || 'On SoundCloud'); row.page = r.page; free.unshift(row); return; }
       (r.lossless ? (r.free ? free : dig) : lossy).push(row);
       have[r.store] = 1;
     });
@@ -669,7 +677,7 @@
     phys.push({ name: 'Discogs CDs', what: 'Used and new CDs from record shops and collectors', price: null, url: p && p.master ? 'https://www.discogs.com/sell/list?master_id=' + p.master + '&format=CD' : 'https://www.discogs.com/search/?q=' + ea + '&type=release&format_exact=CD', auto: false });
     phys.push({ name: 'eBay', what: 'Search CDs', price: null, url: 'https://www.ebay.com/sch/i.html?_nkw=' + enc(albumQ + ' CD'), auto: false });
     phys.push({ name: 'Amazon', what: 'Search CDs & vinyl', price: null, url: 'https://www.amazon.com/s?k=' + ea + '&i=popular', auto: false });
-    free.push({ name: 'SoundCloud', what: 'Look for a Download button or a free-download link', price: null, url: 'https://soundcloud.com/search/sounds?q=' + e, auto: false });
+    if (!have.SoundCloud) free.push({ name: 'SoundCloud', what: 'Search: look for a Download button or a free-download link', price: null, url: 'https://soundcloud.com/search/sounds?q=' + e, auto: false });
     free.push({ name: 'Free Music Archive', what: 'Creative Commons tracks', price: null, url: 'https://freemusicarchive.org/search?quicksearch=' + e, auto: false });
     if (!lossy.length) lossy.push({ name: 'Apple (iTunes)', what: 'Search: AAC 256 kbps, lossy', price: null, url: 'https://music.apple.com/us/search?term=' + e, auto: false });
     sample.push({ name: 'WhoSampled', what: 'Where it’s been sampled, and what it samples', price: null, url: 'https://www.whosampled.com/search/?q=' + e, auto: false });

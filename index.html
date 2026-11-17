@@ -202,6 +202,7 @@ canvas.spec { width: 100%; height: 170px; display: block; }
 .sug:first-child { border-top: 0; }
 .sug[aria-selected="true"], .sug:hover { background: var(--paper); }
 .sug img, .cover-ph { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex: 0 0 auto; background: var(--line); }
+.sug-all .item-top { color: var(--accent); }
 .sug-hint { padding: 10px 14px; font-size: 13px; color: var(--muted); }
 .opt-group { margin-top: 18px; }
 .opt-group h3 { margin-bottom: 8px; }
@@ -276,7 +277,7 @@ canvas.spec { width: 100%; height: 170px; display: block; }
       <div class="chips" id="manual-links" style="margin-top: 10px"></div>
     </div>
     <div id="dig-empty">
-      <p class="hint">Start typing a song and pick it from the list. Clean Crate prices it on Beatport and Bandcamp, finds the cheapest CD or vinyl on Discogs, and lines up every other place to get it: Qobuz, Traxsource, Juno, 7digital, eBay, Amazon, free routes and sampling sources. Tracks you pick are saved to your crate with their BPM and key.</p>
+      <p class="hint">Start typing a song and pick it from the list. Clean Crate prices it on Beatport and Bandcamp, finds free downloads on SoundCloud, finds the cheapest CD or vinyl on Discogs, and lines up every other place to get it: Qobuz, Traxsource, Juno, 7digital, eBay, Amazon, free routes and sampling sources. Tracks you pick are saved to your crate with their BPM and key.</p>
       <div id="recent" style="margin-top: 16px"></div>
     </div>
   </section>
@@ -828,7 +829,7 @@ canvas.spec { width: 100%; height: 170px; display: block; }
 
   /* ---------- live lookup ---------- */
   C.HELPER = 'https://clean-crate-lookup.tadeusz-c41.workers.dev/';
-  var STORE_NAMES = { bandcamp: 'Bandcamp', beatport: 'Beatport', qobuz: 'Qobuz', itunes: 'Apple (iTunes)', musicbrainz: 'MusicBrainz' };
+  var STORE_NAMES = { bandcamp: 'Bandcamp', beatport: 'Beatport', qobuz: 'Qobuz', itunes: 'Apple (iTunes)', musicbrainz: 'MusicBrainz' , soundcloud: 'SoundCloud'};
   C.storeName = function (k) { return STORE_NAMES[k] || k; };
   function mmss(s) { if (!s) return null; s = Math.round(s); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
   function normTxt(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
@@ -865,7 +866,7 @@ canvas.spec { width: 100%; height: 170px; display: block; }
     }
     if (data && data.best) {
       var b = data.best;
-      vm.best = { store: C.storeName(b.store), title: b.title, artist: b.artist, url: b.url, free: !!b.free, price: b.price ? b.price.display : null, quality: b.quality, match: b.match };
+      vm.best = { store: C.storeName(b.store), title: b.title, artist: b.artist, url: b.url, free: !!b.free, price: b.price ? b.price.display : null, quality: b.quality, match: b.match, via: b.via || null, lossless: b.store !== 'soundcloud' };
     }
     ['bandcamp', 'beatport', 'qobuz'].forEach(function (k) {
       var s = src[k];
@@ -878,6 +879,13 @@ canvas.spec { width: 100%; height: 170px; display: block; }
           lossless: true });
       });
       if (s.status === 'none') vm.rows.push({ store: C.storeName(k), none: true });
+    });
+    var sc = src.soundcloud;
+    (sc && sc.items || []).forEach(function (it) {
+      if (it.match === 'possible' && !it.free) return;
+      vm.rows.push({ store: 'SoundCloud', sc: true, title: it.title, artist: it.uploader || it.artist, url: it.free && it.freeUrl ? it.freeUrl : it.url, page: it.url, match: it.match,
+        price: it.free ? 'Free' : null, free: !!it.free, detail: it.how || '', lossless: false, cover: it.cover || null, genre: it.genre || null });
+      if (!vm.cover && it.cover && it.match !== 'possible') vm.cover = it.cover;
     });
     (apple || []).forEach(function (it) {
       vm.rows.push({ store: 'Apple (iTunes)', title: it.title, artist: it.artist, url: it.url, match: it.match, price: it.price ? it.price.display : null, detail: 'AAC 256 kbps, lossy. Shown for reference', lossless: false });
@@ -1029,6 +1037,7 @@ canvas.spec { width: 100%; height: 170px; display: block; }
       if (!r.url || seenUrl[r.url]) return; seenUrl[r.url] = 1;
       var by = r.artist && normTxt(r.artist) !== normTxt(artist) && normTxt(r.title || '').indexOf(normTxt(r.artist)) < 0 ? ' by ' + r.artist : '';
       var row = { name: r.store, what: (r.title ? r.title + by + ' · ' : '') + (r.lossless ? (r.detail || 'Lossless download') : 'AAC 256 kbps, lossy'), price: r.free ? 'Free' : r.price || null, free: !!r.free, url: r.url, auto: true, match: r.match };
+      if (r.sc) { have.SoundCloud = 1; row.what = (r.title || '') + (r.artist ? ' \u00b7 by ' + r.artist : '') + ' \u00b7 ' + (r.detail || 'On SoundCloud'); row.page = r.page; free.unshift(row); return; }
       (r.lossless ? (r.free ? free : dig) : lossy).push(row);
       have[r.store] = 1;
     });
@@ -1045,7 +1054,7 @@ canvas.spec { width: 100%; height: 170px; display: block; }
     phys.push({ name: 'Discogs CDs', what: 'Used and new CDs from record shops and collectors', price: null, url: p && p.master ? 'https://www.discogs.com/sell/list?master_id=' + p.master + '&format=CD' : 'https://www.discogs.com/search/?q=' + ea + '&type=release&format_exact=CD', auto: false });
     phys.push({ name: 'eBay', what: 'Search CDs', price: null, url: 'https://www.ebay.com/sch/i.html?_nkw=' + enc(albumQ + ' CD'), auto: false });
     phys.push({ name: 'Amazon', what: 'Search CDs & vinyl', price: null, url: 'https://www.amazon.com/s?k=' + ea + '&i=popular', auto: false });
-    free.push({ name: 'SoundCloud', what: 'Look for a Download button or a free-download link', price: null, url: 'https://soundcloud.com/search/sounds?q=' + e, auto: false });
+    if (!have.SoundCloud) free.push({ name: 'SoundCloud', what: 'Search: look for a Download button or a free-download link', price: null, url: 'https://soundcloud.com/search/sounds?q=' + e, auto: false });
     free.push({ name: 'Free Music Archive', what: 'Creative Commons tracks', price: null, url: 'https://freemusicarchive.org/search?quicksearch=' + e, auto: false });
     if (!lossy.length) lossy.push({ name: 'Apple (iTunes)', what: 'Search: AAC 256 kbps, lossy', price: null, url: 'https://music.apple.com/us/search?term=' + e, auto: false });
     sample.push({ name: 'WhoSampled', what: 'Where it’s been sampled, and what it samples', price: null, url: 'https://www.whosampled.com/search/?q=' + e, auto: false });
@@ -1357,6 +1366,7 @@ canvas.spec { width: 100%; height: 170px; display: block; }
       if (!live || live.deleted) return null;
       var vm = applyLookup(live, res[0], res[1]);
       if (vm.facts && vm.facts.album && !live.album) live.album = vm.facts.album;
+      if (vm.cover && !live.cover) live.cover = vm.cover;
       live.sources = sourcesFrom(vm);
       if (!opts.dry) commit(live);
       return vm;
@@ -1399,10 +1409,20 @@ canvas.spec { width: 100%; height: 170px; display: block; }
     var m = el('div', 'item-main');
     var tt = el('span', 'item-top', t.title); if (t.explicit) tt.appendChild(el('span', 'tag tag-muted', 'E'));
     m.appendChild(tt);
-    m.appendChild(el('span', 'item-sub', [t.artist, t.album, t.duration ? fmtTime(t.duration) : null].filter(Boolean).join(' · ')));
+    m.appendChild(el('span', 'item-sub', [t.artist, t.album, t.duration ? fmtTime(t.duration) : null, t.source === 'soundcloud' ? (t.freeHint ? 'SoundCloud · free download' : 'SoundCloud') : null].filter(Boolean).join(' · ')));
     b.appendChild(m);
     b.addEventListener('mousedown', function (e) { e.preventDefault(); });
     b.addEventListener('click', function () { onPick(t); });
+    return b;
+  }
+  function everywhereButton(q) {
+    var b = el('button', 'sug sug-all'); b.type = 'button';
+    var m = el('div', 'item-main');
+    m.appendChild(el('span', 'item-top', 'Search every store for “' + q + '”'));
+    m.appendChild(el('span', 'item-sub', 'For edits, dubs and bootlegs that aren’t on streaming services'));
+    b.appendChild(m);
+    b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    b.addEventListener('click', function () { closeSuggest(); sug.seq++; runFind(q, { force: true }); });
     return b;
   }
   var sug = { items: [], active: -1, seq: 0, timer: null };
@@ -1412,6 +1432,7 @@ canvas.spec { width: 100%; height: 170px; display: block; }
     sug.items = items; sug.active = -1;
     if (!items.length) { box.appendChild(el('div', 'sug-hint', 'No songs match “' + q + '” yet. Keep typing, or add the artist.')); }
     items.forEach(function (t, n) { var b = sugButton(t, pickSuggestion); b.id = 'sug-' + n; box.appendChild(b); });
+    box.appendChild(everywhereButton(q));
     box.hidden = false; $('find-input').setAttribute('aria-expanded', 'true');
   }
   function moveActive(d) {
@@ -1504,17 +1525,17 @@ canvas.spec { width: 100%; height: 170px; display: block; }
     });
   }
   function sourcesFrom(vm) {
-    return vm.rows.filter(function (r) { return !r.none; }).map(function (r) { return { store: r.store, title: r.title, artist: r.artist, url: r.url, price: r.price || null, free: !!r.free, lossless: !!r.lossless, match: r.match, detail: r.detail || null }; });
+    return vm.rows.filter(function (r) { return !r.none; }).map(function (r) { return { store: r.store, title: r.title, artist: r.artist, url: r.url, page: r.page || null, sc: !!r.sc, price: r.price || null, free: !!r.free, lossless: !!r.lossless, match: r.match, detail: r.detail || null }; });
   }
   function bestCard(vm) {
     var b = el('div', 'best' + (vm.best.free ? ' free' : ''));
-    b.appendChild(el('span', 'best-label', vm.best.free ? 'Free lossless download' : 'Cheapest lossless copy'));
+    b.appendChild(el('span', 'best-label', !vm.best.lossless ? 'Free download from the artist' : vm.best.free ? 'Free lossless download' : 'Cheapest lossless copy'));
     var main = el('div', 'best-main');
     main.appendChild(el('span', 'best-title', vm.best.artist + ' – ' + vm.best.title));
     main.appendChild(el('span', 'best-price', vm.best.free ? 'Free' : (vm.best.price || '')));
     b.appendChild(main);
-    b.appendChild(el('span', 'best-sub', vm.best.store + (vm.best.quality ? ' · ' + vm.best.quality : '') + ' · ' + (vm.best.match === 'exact' ? 'exact match' : vm.best.match)));
-    b.appendChild(link(null, 'Open on ' + vm.best.store, vm.best.url));
+    b.appendChild(el('span', 'best-sub', (vm.best.via ? vm.best.store + ' · ' + vm.best.via : vm.best.store) + (vm.best.quality ? ' · ' + vm.best.quality : '') + ' · ' + (vm.best.match === 'exact' ? 'exact match' : vm.best.match)));
+    b.appendChild(link(null, vm.best.via && /via /.test(vm.best.via) ? 'Get the free download' : 'Open on ' + vm.best.store, vm.best.url));
     return b;
   }
   function factsLine(i) {
@@ -1560,12 +1581,14 @@ canvas.spec { width: 100%; height: 170px; display: block; }
   function renderChoices(q, items) {
     var box = $('lookup'); box.textContent = '';
     if (!items.length) {
-      box.appendChild(el('p', 'status', 'Couldn’t find a song called “' + q + '”. Try adding the artist, like “Frank Ocean - Nights”.'));
+      box.appendChild(el('p', 'status', 'No songs called “' + q + '” in the usual catalogs. Try adding the artist, like “Frank Ocean - Nights”, or search every store.'));
+      var l0 = el('div', 'list'); l0.style.marginTop = '10px'; l0.appendChild(everywhereButton(q)); box.appendChild(l0);
       return;
     }
     box.appendChild(el('h3', null, 'Which one do you mean?'));
     var list = el('div', 'list'); list.style.marginTop = '10px';
     items.forEach(function (t) { list.appendChild(sugButton(t, pickSuggestion)); });
+    list.appendChild(everywhereButton(q));
     box.appendChild(list);
     box.appendChild(el('p', 'hint', 'Nothing is saved until you pick one.'));
   }
@@ -1583,7 +1606,7 @@ canvas.spec { width: 100%; height: 170px; display: block; }
     var box = $('lookup'); box.textContent = '';
     var isLink = /^https?:\/\//i.test(String(text).trim());
     var hasArtist = /\s[-–—]\s/.test(p.query);
-    if (!opts.pick && !isLink && !hasArtist) {
+    if (!opts.pick && !opts.force && !isLink && !hasArtist) {
       box.appendChild(el('p', 'status loading', 'Finding songs called “' + p.query + '”…'));
       reveal(box);
       fetchSuggest(p.query).then(function (items) {
@@ -1598,7 +1621,7 @@ canvas.spec { width: 100%; height: 170px; display: block; }
     var t = opts.pick;
     if (t) { item.artist = t.artist; item.title = t.title; item.album = t.album || item.album; item.cover = t.cover || item.cover; item.duration = t.duration || item.duration; }
     var save = !!(existing || t);
-    box.appendChild(el('p', 'status loading', 'Pricing “' + displayName(item) + '” on Beatport, Bandcamp and Apple, and lining up every other store…'));
+    box.appendChild(el('p', 'status loading', 'Checking Beatport, Bandcamp, SoundCloud and Apple for “' + displayName(item) + '”, and lining up every other store…'));
     reveal(box);
     if (save) commit(item);
     lookupItem(item, { apple: true, dry: !save }).then(function (vm) {

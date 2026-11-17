@@ -28,25 +28,26 @@ export default {
     const q = (url.searchParams.get('q') || '').trim().slice(0, 200);
     if (!q) return json({ error: 'Add ?q=Artist - Title' }, 400, cors);
 
-    const cacheKey = new Request('https://clean-crate-cache/v1?q=' + encodeURIComponent(q.toLowerCase()));
+    const cacheKey = new Request('https://clean-crate-cache/v2?q=' + encodeURIComponent(q.toLowerCase()));
     const cache = caches.default;
     const hit = await cache.match(cacheKey);
     if (hit) { const body = await hit.text(); return new Response(body, { headers: { ...cors, 'Content-Type': 'application/json', 'X-Cache': 'hit' } }); }
 
     const parsed = splitQuery(q);
-    const [bandcamp, beatport, qobuz, itunes, musicbrainz] = await Promise.all([
+    const [bandcamp, beatport, qobuz, itunes, musicbrainz, soundcloud] = await Promise.all([
       safe(() => searchBandcamp(parsed)),
       safe(() => searchBeatport(parsed)),
       safe(() => searchQobuz(parsed)),
       safe(() => searchItunes(parsed)),
-      safe(() => searchMusicBrainz(parsed))
+      safe(() => searchMusicBrainz(parsed)),
+      safe(() => searchSoundcloud(parsed))
     ]);
     const e = encodeURIComponent(parsed.text);
     const result = {
       query: q,
       parsed,
       checkedAt: new Date().toISOString(),
-      sources: { bandcamp, beatport, qobuz, itunes, musicbrainz },
+      sources: { bandcamp, beatport, qobuz, itunes, musicbrainz, soundcloud },
       links: {
         traxsource: 'https://www.traxsource.com/search/tracks?term=' + e,
         juno: 'https://www.junodownload.com/search/?q%5Ball%5D%5B%5D=' + e,
@@ -67,12 +68,17 @@ export default {
 async function suggest(url, ctx, cors) {
   const q = (url.searchParams.get('q') || '').trim().slice(0, 120);
   if (q.length < 2) return json({ items: [] }, 200, cors);
-  const cacheKey = new Request('https://clean-crate-cache/suggest/v1?q=' + encodeURIComponent(q.toLowerCase()));
+  const cacheKey = new Request('https://clean-crate-cache/suggest/v2?q=' + encodeURIComponent(q.toLowerCase()));
   const hit = await caches.default.match(cacheKey);
   if (hit) return new Response(await hit.text(), { headers: { ...cors, 'Content-Type': 'application/json', 'X-Cache': 'hit' } });
-  const r = await get('https://api.deezer.com/search?limit=10&q=' + encodeURIComponent(q));
-  if (!r.ok) return json({ items: [], note: 'HTTP ' + r.status }, 200, cors);
-  const j = await r.json();
+  const [r, sc] = await Promise.all([
+    get('https://api.deezer.com/search?limit=10&q=' + encodeURIComponent(q)),
+    safe(() => soundcloudSearchList(q))
+  ]);
+  const j = r.ok ? await r.json() : {};
+  const words = norm(q).split(' ').filter(Boolean);
+  const scItems = (sc.items || []).filter(x => { const hay = ' ' + norm(x.rawTitle) + ' ' + norm(x.user) + ' '; return words.every(w => hay.includes(' ' + w + ' ')); })
+    .slice(0, 3).map(x => ({ title: x.title, artist: x.artist, album: null, cover: null, duration: null, explicit: false, source: 'soundcloud', soundcloud: x.url, freeHint: x.freeHint }));
   const items = (j.data || []).filter(t => t && t.type === 'track').map(t => ({
     title: t.title,
     artist: t.artist && t.artist.name || '',
@@ -82,7 +88,7 @@ async function suggest(url, ctx, cors) {
     explicit: !!t.explicit_lyrics,
     rank: t.rank || 0,
     deezer: t.link || null
-  }));
+  })).slice(0, 7).concat(scItems);
   const body = JSON.stringify({ items });
   ctx.waitUntil(caches.default.put(cacheKey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=86400' } })));
   return new Response(body, { headers: { ...cors, 'Content-Type': 'application/json', 'X-Cache': 'miss' } });
@@ -147,7 +153,7 @@ function norm(s) {
     .replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
 }
 const SAME_SONG = /^(clean|explicit|dirty|original|original mix|album version|single version)$/;
-const VERSION_WORDS = /\b(remix(ed)?|edit|mix|dub|vip|bootleg|rework|refix|flip|instrumental|acapella|a cappella|version|extended|radio|clean|explicit|live|remaster(ed)?|sped up|slowed)\b/;
+const VERSION_WORDS = /\b(remix(ed)?|edit|mix|dub|vip|bootleg|rework|refix|flip|instrumental|acapella|a cappella|version|extended|radio|clean|explicit|live|remaster(ed)?|sped up|slowed|mashup|blend)\b/;
 
 function splitQuery(q) {
   const m = q.split(/\s+[-–—]\s+|\s+by\s+/i);
@@ -367,6 +373,84 @@ async function searchMusicBrainz(parsed) {
   return { status: items.length ? 'ok' : 'none', items };
 }
 
+/* ---------------- SoundCloud (public search page + the artist's own download link) ---------------- */
+
+const FREE_TAG = /\s*[\(\[\{]?\s*(free\s*(download|dl)|out now|buy\s*=\s*free(\s*(download|dl))?|click buy[^\)\]]*)\s*[\)\]\}]?\s*/ig;
+function scParse(rawTitle, userSlug, userName) {
+  const freeHint = /free\s*(download|dl)|buy\s*=\s*free/i.test(rawTitle);
+  const clean = decodeEntities(rawTitle).replace(FREE_TAG, ' ').replace(/\s+/g, ' ').trim();
+  const m = clean.match(/^(.+?)\s*[-–—]\s+(.+)$/) || clean.match(/^(.+?)\s+[-–—]\s*(.+)$/) || clean.match(/^([^-–—]+?)-(.+)$/);
+  const artist = m ? m[1].trim() : (userName || userSlug || '');
+  const title = m ? m[2].trim() : clean;
+  return { artist, title, freeHint };
+}
+async function soundcloudSearchList(text) {
+  const r = await get('https://soundcloud.com/search/sounds?q=' + encodeURIComponent(text));
+  if (!r.ok) return { status: r.status === 403 || r.status === 429 ? 'blocked' : 'error', note: 'HTTP ' + r.status, items: [] };
+  const html = await r.text();
+  const items = [];
+  const re = /<li><h2><a href="(\/[^"\/]+\/[^"\/]+)">([^<]*)<\/a><\/h2><\/li>/g;
+  let m;
+  while ((m = re.exec(html)) && items.length < 10) {
+    const rawTitle = decodeEntities(m[2]);
+    const user = m[1].split('/')[1];
+    const p = scParse(rawTitle, user);
+    items.push({ url: 'https://soundcloud.com' + m[1], rawTitle, user, title: p.title, artist: p.artist, freeHint: p.freeHint });
+  }
+  return { status: 'ok', items };
+}
+async function soundcloudTrack(url) {
+  const r = await get(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const html = await r.text();
+  const m = html.match(/window\.__sc_hydration\s*=\s*(\[[\s\S]*?\]);\s*<\/script>/);
+  if (!m) return {};
+  const sound = (JSON.parse(m[1]).find(x => x.hydratable === 'sound') || {}).data || {};
+  return {
+    username: sound.user && sound.user.username || null,
+    downloadable: !!sound.downloadable && sound.has_downloads_left !== false,
+    purchaseUrl: sound.purchase_url || null,
+    purchaseTitle: sound.purchase_title || null,
+    artwork: sound.artwork_url ? sound.artwork_url.replace('-large.', '-t300x300.') : null,
+    genre: sound.genre || null,
+    lengthSec: sound.full_duration ? Math.round(sound.full_duration / 1000) : null,
+    description: (sound.description || '').slice(0, 2000)
+  };
+}
+function hostOf(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } }
+async function searchSoundcloud(parsed) {
+  const list = await soundcloudSearchList(parsed.text);
+  if (list.status !== 'ok') return list;
+  const hits = list.items
+    .map(x => ({ x, score: Math.max(scoreMatch(parsed, x.title, x.artist), scoreMatch(parsed, x.artist + ' ' + x.title, x.user)) }))
+    .filter(h => h.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+  if (!hits.length) return { status: 'none', items: [] };
+  const items = await Promise.all(hits.map(async ({ x, score }) => {
+    const base = { title: x.rawTitle, cleanTitle: x.title, artist: x.artist, url: x.url, match: matchLabel(score), score };
+    let t = {};
+    try { t = await soundcloudTrack(x.url); } catch (e) { return { ...base, free: x.freeHint, freeUrl: null, how: x.freeHint ? 'The title says free download. Open the track to find the link.' : null }; }
+    const gate = t.purchaseUrl && (/free|download|\bdl\b/i.test(t.purchaseTitle || '') || x.freeHint || /hypeddit|toneden|fanlink|feature\.fm|dropbox|drive\.google|wetransfer|gate\.fm|smarturl/i.test(t.purchaseUrl));
+    const descLink = !t.downloadable && !gate ? ((t.description || '').match(/https?:\/\/[^\s)]*(hypeddit|toneden|fanlink|dropbox|drive\.google|wetransfer|gate\.fm)[^\s)]*/i) || [])[0] : null;
+    const freeUrl = t.downloadable ? x.url : gate ? t.purchaseUrl : descLink || null;
+    const free = !!freeUrl;
+    return {
+      ...base,
+      artist: x.artist || t.username,
+      uploader: t.username || x.user,
+      free,
+      freeUrl,
+      how: t.downloadable ? 'Download button on the SoundCloud page' : free ? 'Free download via ' + hostOf(freeUrl) : x.freeHint ? 'The title says free download. Check the track description.' : 'Stream only. No free download link found',
+      cover: t.artwork || null,
+      genre: t.genre || null,
+      lengthSec: t.lengthSec || null,
+      quality: 'Format set by the artist (often WAV or 320 MP3)'
+    };
+  }));
+  return { status: 'ok', items };
+}
+
 /* ---------------- best option ---------------- */
 
 function pickBest(sources) {
@@ -380,7 +464,10 @@ function pickBest(sources) {
       else if (it.price && (!it.price.currency || it.price.currency === 'USD')) cands.push({ store, item: it, cost: it.price.value });
     }
   }
-  if (!cands.length) return null;
+  if (!cands.length) {
+    const sc = (sources.soundcloud && sources.soundcloud.items || []).filter(it => it.free && it.score >= 7)[0];
+    return sc ? { store: 'soundcloud', title: sc.cleanTitle || sc.title, artist: sc.artist, url: sc.freeUrl, free: true, price: null, quality: sc.quality, match: sc.match, via: sc.how } : null;
+  }
   const tier = c => (c.item.score >= 9 ? 0 : 1);
   cands.sort((a, b) => tier(a) - tier(b) || a.cost - b.cost);
   const b = cands[0];

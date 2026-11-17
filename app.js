@@ -267,6 +267,7 @@
       if (!live || live.deleted) return null;
       var vm = applyLookup(live, res[0], res[1]);
       if (vm.facts && vm.facts.album && !live.album) live.album = vm.facts.album;
+      if (vm.cover && !live.cover) live.cover = vm.cover;
       live.sources = sourcesFrom(vm);
       if (!opts.dry) commit(live);
       return vm;
@@ -309,10 +310,20 @@
     var m = el('div', 'item-main');
     var tt = el('span', 'item-top', t.title); if (t.explicit) tt.appendChild(el('span', 'tag tag-muted', 'E'));
     m.appendChild(tt);
-    m.appendChild(el('span', 'item-sub', [t.artist, t.album, t.duration ? fmtTime(t.duration) : null].filter(Boolean).join(' · ')));
+    m.appendChild(el('span', 'item-sub', [t.artist, t.album, t.duration ? fmtTime(t.duration) : null, t.source === 'soundcloud' ? (t.freeHint ? 'SoundCloud · free download' : 'SoundCloud') : null].filter(Boolean).join(' · ')));
     b.appendChild(m);
     b.addEventListener('mousedown', function (e) { e.preventDefault(); });
     b.addEventListener('click', function () { onPick(t); });
+    return b;
+  }
+  function everywhereButton(q) {
+    var b = el('button', 'sug sug-all'); b.type = 'button';
+    var m = el('div', 'item-main');
+    m.appendChild(el('span', 'item-top', 'Search every store for “' + q + '”'));
+    m.appendChild(el('span', 'item-sub', 'For edits, dubs and bootlegs that aren’t on streaming services'));
+    b.appendChild(m);
+    b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    b.addEventListener('click', function () { closeSuggest(); sug.seq++; runFind(q, { force: true }); });
     return b;
   }
   var sug = { items: [], active: -1, seq: 0, timer: null };
@@ -322,6 +333,7 @@
     sug.items = items; sug.active = -1;
     if (!items.length) { box.appendChild(el('div', 'sug-hint', 'No songs match “' + q + '” yet. Keep typing, or add the artist.')); }
     items.forEach(function (t, n) { var b = sugButton(t, pickSuggestion); b.id = 'sug-' + n; box.appendChild(b); });
+    box.appendChild(everywhereButton(q));
     box.hidden = false; $('find-input').setAttribute('aria-expanded', 'true');
   }
   function moveActive(d) {
@@ -414,17 +426,17 @@
     });
   }
   function sourcesFrom(vm) {
-    return vm.rows.filter(function (r) { return !r.none; }).map(function (r) { return { store: r.store, title: r.title, artist: r.artist, url: r.url, price: r.price || null, free: !!r.free, lossless: !!r.lossless, match: r.match, detail: r.detail || null }; });
+    return vm.rows.filter(function (r) { return !r.none; }).map(function (r) { return { store: r.store, title: r.title, artist: r.artist, url: r.url, page: r.page || null, sc: !!r.sc, price: r.price || null, free: !!r.free, lossless: !!r.lossless, match: r.match, detail: r.detail || null }; });
   }
   function bestCard(vm) {
     var b = el('div', 'best' + (vm.best.free ? ' free' : ''));
-    b.appendChild(el('span', 'best-label', vm.best.free ? 'Free lossless download' : 'Cheapest lossless copy'));
+    b.appendChild(el('span', 'best-label', !vm.best.lossless ? 'Free download from the artist' : vm.best.free ? 'Free lossless download' : 'Cheapest lossless copy'));
     var main = el('div', 'best-main');
     main.appendChild(el('span', 'best-title', vm.best.artist + ' – ' + vm.best.title));
     main.appendChild(el('span', 'best-price', vm.best.free ? 'Free' : (vm.best.price || '')));
     b.appendChild(main);
-    b.appendChild(el('span', 'best-sub', vm.best.store + (vm.best.quality ? ' · ' + vm.best.quality : '') + ' · ' + (vm.best.match === 'exact' ? 'exact match' : vm.best.match)));
-    b.appendChild(link(null, 'Open on ' + vm.best.store, vm.best.url));
+    b.appendChild(el('span', 'best-sub', (vm.best.via ? vm.best.store + ' · ' + vm.best.via : vm.best.store) + (vm.best.quality ? ' · ' + vm.best.quality : '') + ' · ' + (vm.best.match === 'exact' ? 'exact match' : vm.best.match)));
+    b.appendChild(link(null, vm.best.via && /via /.test(vm.best.via) ? 'Get the free download' : 'Open on ' + vm.best.store, vm.best.url));
     return b;
   }
   function factsLine(i) {
@@ -470,12 +482,14 @@
   function renderChoices(q, items) {
     var box = $('lookup'); box.textContent = '';
     if (!items.length) {
-      box.appendChild(el('p', 'status', 'Couldn’t find a song called “' + q + '”. Try adding the artist, like “Frank Ocean - Nights”.'));
+      box.appendChild(el('p', 'status', 'No songs called “' + q + '” in the usual catalogs. Try adding the artist, like “Frank Ocean - Nights”, or search every store.'));
+      var l0 = el('div', 'list'); l0.style.marginTop = '10px'; l0.appendChild(everywhereButton(q)); box.appendChild(l0);
       return;
     }
     box.appendChild(el('h3', null, 'Which one do you mean?'));
     var list = el('div', 'list'); list.style.marginTop = '10px';
     items.forEach(function (t) { list.appendChild(sugButton(t, pickSuggestion)); });
+    list.appendChild(everywhereButton(q));
     box.appendChild(list);
     box.appendChild(el('p', 'hint', 'Nothing is saved until you pick one.'));
   }
@@ -493,7 +507,7 @@
     var box = $('lookup'); box.textContent = '';
     var isLink = /^https?:\/\//i.test(String(text).trim());
     var hasArtist = /\s[-–—]\s/.test(p.query);
-    if (!opts.pick && !isLink && !hasArtist) {
+    if (!opts.pick && !opts.force && !isLink && !hasArtist) {
       box.appendChild(el('p', 'status loading', 'Finding songs called “' + p.query + '”…'));
       reveal(box);
       fetchSuggest(p.query).then(function (items) {
@@ -508,7 +522,7 @@
     var t = opts.pick;
     if (t) { item.artist = t.artist; item.title = t.title; item.album = t.album || item.album; item.cover = t.cover || item.cover; item.duration = t.duration || item.duration; }
     var save = !!(existing || t);
-    box.appendChild(el('p', 'status loading', 'Pricing “' + displayName(item) + '” on Beatport, Bandcamp and Apple, and lining up every other store…'));
+    box.appendChild(el('p', 'status loading', 'Checking Beatport, Bandcamp, SoundCloud and Apple for “' + displayName(item) + '”, and lining up every other store…'));
     reveal(box);
     if (save) commit(item);
     lookupItem(item, { apple: true, dry: !save }).then(function (vm) {
