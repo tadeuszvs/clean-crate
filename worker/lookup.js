@@ -3,6 +3,7 @@
  * GET /?q=Artist%20-%20Title  ->  JSON with what each store has, prices, free downloads, and track details.
  * Reads public store pages and public APIs, one search at a time, with results cached for 6 hours.
  * GET/PUT /sync?key=...  ->  stores one crate per sync key in Workers KV (binding: CRATE).
+ * GET /suggest?q=...  ->  the most popular matching songs (from Deezer's public search), for the search dropdown.
  */
 
 const ALLOWED_ORIGINS = ['https://tadeuszvs.github.io', 'http://localhost:8000', 'http://127.0.0.1:8000'];
@@ -23,6 +24,7 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
     const url = new URL(request.url);
     if (url.pathname === '/sync') return sync(request, url, env, cors);
+    if (url.pathname === '/suggest') return suggest(url, ctx, cors);
     const q = (url.searchParams.get('q') || '').trim().slice(0, 200);
     if (!q) return json({ error: 'Add ?q=Artist - Title' }, 400, cors);
 
@@ -59,6 +61,32 @@ export default {
     return new Response(body, { headers: { ...cors, 'Content-Type': 'application/json', 'X-Cache': 'miss' } });
   }
 };
+
+/* ---------------- search suggestions ---------------- */
+
+async function suggest(url, ctx, cors) {
+  const q = (url.searchParams.get('q') || '').trim().slice(0, 120);
+  if (q.length < 2) return json({ items: [] }, 200, cors);
+  const cacheKey = new Request('https://clean-crate-cache/suggest/v1?q=' + encodeURIComponent(q.toLowerCase()));
+  const hit = await caches.default.match(cacheKey);
+  if (hit) return new Response(await hit.text(), { headers: { ...cors, 'Content-Type': 'application/json', 'X-Cache': 'hit' } });
+  const r = await get('https://api.deezer.com/search?limit=10&q=' + encodeURIComponent(q));
+  if (!r.ok) return json({ items: [], note: 'HTTP ' + r.status }, 200, cors);
+  const j = await r.json();
+  const items = (j.data || []).filter(t => t && t.type === 'track').map(t => ({
+    title: t.title,
+    artist: t.artist && t.artist.name || '',
+    album: t.album && t.album.title || null,
+    cover: t.album && (t.album.cover_medium || t.album.cover) || null,
+    duration: t.duration || null,
+    explicit: !!t.explicit_lyrics,
+    rank: t.rank || 0,
+    deezer: t.link || null
+  }));
+  const body = JSON.stringify({ items });
+  ctx.waitUntil(caches.default.put(cacheKey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=86400' } })));
+  return new Response(body, { headers: { ...cors, 'Content-Type': 'application/json', 'X-Cache': 'miss' } });
+}
 
 /* ---------------- crate sync ---------------- */
 

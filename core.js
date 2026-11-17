@@ -638,6 +638,70 @@
       .replace(/^\s*\d{1,3}\s*[-.)]?\s+/, '').replace(/\s+/g, ' ').trim();
   };
 
+  /* ---------- every place to get a track ---------- */
+  function enc(s) { return encodeURIComponent(String(s || '').trim()); }
+  /* item: crate item ({q, artist, title, album, sources, physical, appleRef}); returns groups of {name, what, price, free, url, auto} */
+  C.allOptions = function (item) {
+    var artist = item.artist || '', title = item.title || '', q = artist && title ? artist + ' ' + title : (item.q || '').replace(/\s+[-–—]\s+/, ' ');
+    var albumQ = artist && item.album ? artist + ' ' + item.album : q;
+    var e = enc(q), ea = enc(albumQ);
+    var found = item.sources || [];
+    var have = {};
+    var dig = [], phys = [], free = [], lossy = [], sample = [];
+    found.forEach(function (r) {
+      var row = { name: r.store, what: (r.title ? r.title + ' · ' : '') + (r.lossless ? (r.detail || 'Lossless download') : 'AAC 256 kbps, lossy'), price: r.free ? 'Free' : r.price || null, free: !!r.free, url: r.url, auto: true, match: r.match };
+      (r.lossless ? (r.free ? free : dig) : lossy).push(row);
+      have[r.store] = 1;
+    });
+    function add(list, name, what, url) { if (!have[name]) list.push({ name: name, what: what, price: null, url: url, auto: false }); }
+    add(dig, 'Bandcamp', 'Search: WAV, AIFF or FLAC, often name-your-price', 'https://bandcamp.com/search?q=' + e + '&item_type=t');
+    add(dig, 'Beatport', 'Search: WAV or AIFF', 'https://www.beatport.com/search?q=' + e);
+    add(dig, 'Qobuz', 'Search: FLAC, CD quality or hi-res', 'https://www.qobuz.com/us-en/search?q=' + e);
+    add(dig, 'Traxsource', 'Search: WAV or AIFF', 'https://www.traxsource.com/search?term=' + e);
+    add(dig, 'Juno Download', 'Search: WAV or FLAC', 'https://www.junodownload.com/search/?q%5Ball%5D%5B%5D=' + e);
+    add(dig, '7digital', 'Search: FLAC where available', 'https://us.7digital.com/search?q=' + e);
+    var p = item.physical;
+    if (p && p.lowest != null) phys.push({ name: 'Discogs', what: (p.title ? p.title + ' · ' : '') + p.forSale + ' for sale, CD, vinyl and other formats', price: 'from $' + Number(p.lowest).toFixed(2), url: p.url, auto: true });
+    else if (p && p.url) phys.push({ name: 'Discogs', what: (p.title ? p.title + ' · ' : '') + 'none for sale right now', price: null, url: p.url, auto: true });
+    phys.push({ name: 'Discogs CDs', what: 'Used and new CDs from record shops and collectors', price: null, url: p && p.master ? 'https://www.discogs.com/sell/list?master_id=' + p.master + '&format=CD' : 'https://www.discogs.com/search/?q=' + ea + '&type=release&format_exact=CD', auto: false });
+    phys.push({ name: 'eBay', what: 'Search CDs', price: null, url: 'https://www.ebay.com/sch/i.html?_nkw=' + enc(albumQ + ' CD'), auto: false });
+    phys.push({ name: 'Amazon', what: 'Search CDs & vinyl', price: null, url: 'https://www.amazon.com/s?k=' + ea + '&i=popular', auto: false });
+    free.push({ name: 'SoundCloud', what: 'Look for a Download button or a free-download link', price: null, url: 'https://soundcloud.com/search/sounds?q=' + e, auto: false });
+    free.push({ name: 'Free Music Archive', what: 'Creative Commons tracks', price: null, url: 'https://freemusicarchive.org/search?quicksearch=' + e, auto: false });
+    if (!lossy.length) lossy.push({ name: 'Apple (iTunes)', what: 'Search: AAC 256 kbps, lossy', price: null, url: 'https://music.apple.com/us/search?term=' + e, auto: false });
+    sample.push({ name: 'WhoSampled', what: 'Where it’s been sampled, and what it samples', price: null, url: 'https://www.whosampled.com/search/?q=' + e, auto: false });
+    sample.push({ name: 'Tracklib', what: 'Records with sample clearance built in', price: null, url: 'https://www.tracklib.com/', auto: false });
+    var noDownload = !dig.some(function (r) { return r.auto; });
+    var gDig = { title: 'Lossless downloads', items: dig }, gPhys = { title: 'CD and vinyl', items: phys };
+    return [
+      noDownload && p && p.lowest != null ? gPhys : gDig,
+      noDownload && p && p.lowest != null ? gDig : gPhys,
+      { title: 'Free', items: free },
+      { title: 'Lossy, for reference', items: lossy },
+      { title: 'For sampling', items: sample }
+    ].filter(function (g) { return g.items.length; });
+  };
+
+  /* MusicBrainz release-group search -> the original album or single (not a compilation). */
+  C.pickReleaseGroup = function (json, album, artist) {
+    var groups = (json && json['release-groups']) || [];
+    var na = normTxt(album), nr = normTxt(artist);
+    var ok = groups.filter(function (g) {
+      var credit = ((g['artist-credit'] || [])[0] || {}).name || '';
+      return (!na || normTxt(g.title) === na) && (!nr || normTxt(credit).indexOf(nr) >= 0 || nr.indexOf(normTxt(credit)) >= 0) && !(g['secondary-types'] || []).length;
+    });
+    ok.sort(function (a, b) { return (b.score || 0) - (a.score || 0) || String(a['first-release-date'] || '9').localeCompare(String(b['first-release-date'] || '9')); });
+    return ok[0] || null;
+  };
+  C.discogsFromRels = function (json) {
+    var urls = ((json && json.relations) || []).map(function (r) { return r.url && r.url.resource; }).filter(Boolean);
+    var m = urls.map(function (u) { return u.match(/discogs\.com\/master\/(\d+)/); }).filter(Boolean)[0];
+    if (m) return { kind: 'master', id: m[1] };
+    var r = urls.map(function (u) { return u.match(/discogs\.com\/release\/(\d+)/); }).filter(Boolean)[0];
+    return r ? { kind: 'release', id: r[1] } : null;
+  };
+  C.SUGGEST = C.HELPER + 'suggest?q=';
+
   C.khz = khz;
   root.Core = C;
   if (typeof module !== 'undefined' && module.exports) module.exports = C;

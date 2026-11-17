@@ -62,4 +62,19 @@ mi = mp3(9, 10000, 10000 * 1152 / 44100 * 245000 / 8); ok('VBR avg from Xing ~24
   ok('query from tags', C.queryFromFile('x.mp3', t) === 'Daye Jack - Easy');
 })();
 ok('query from filename', C.queryFromFile('03 - Daye_Jack - Easy (Extended Mix).wav') === 'Daye Jack - Easy (Extended Mix)', C.queryFromFile('03 - Daye_Jack - Easy (Extended Mix).wav'));
+// every place to get it
+const item = { q: 'Frank Ocean - Nights', artist: 'Frank Ocean', title: 'Nights', album: 'Blonde',
+  sources: [{ store: 'Beatport', title: 'Nights', url: 'b', price: '$1.49', lossless: true, match: 'exact', detail: 'WAV, AIFF' }, { store: 'Apple (iTunes)', title: 'Nights', url: 'a', price: '$1.29', lossless: false }],
+  physical: { lowest: 21.99, forSale: 96, url: 'https://www.discogs.com/master/1046042', master: '1046042', title: 'Blonde' } };
+const groups = C.allOptions(item);
+const names = groups.map(g => g.title + ': ' + g.items.map(i => i.name + (i.price ? ' ' + i.price : '')).join(', '));
+ok('options grouped, found stores first, no duplicate Beatport search', names[0].startsWith('Lossless downloads: Beatport $1.49, Bandcamp') && (names[0].match(/Beatport/g) || []).length === 1, names[0]);
+ok('physical has Discogs price and CD links by album', names[1] === 'CD and vinyl: Discogs from $21.99, Discogs CDs, eBay, Amazon' && groups[1].items[1].url.includes('master_id=1046042') && groups[1].items[2].url.includes('Frank%20Ocean%20Blonde%20CD'), names[1]);
+ok('lossy reference uses found Apple price', names[3] === 'Lossy, for reference: Apple (iTunes) $1.29', names[3]);
+const rg = C.pickReleaseGroup({ 'release-groups': [
+  { id: 'comp', title: 'Blonde', score: 100, 'secondary-types': ['Compilation'], 'artist-credit': [{ name: 'Frank Ocean' }] },
+  { id: 'other', title: 'Blonde', score: 90, 'artist-credit': [{ name: 'Someone Else' }] },
+  { id: 'real', title: 'Blonde', score: 95, 'first-release-date': '2016-08-20', 'artist-credit': [{ name: 'Frank Ocean' }] }] }, 'Blonde', 'Frank Ocean');
+ok('release group: original album, right artist, not compilation', rg && rg.id === 'real');
+ok('discogs master from MB links', JSON.stringify(C.discogsFromRels({ relations: [{ url: { resource: 'https://www.last.fm/x' } }, { url: { resource: 'https://www.discogs.com/master/1046042' } }] })) === '{"kind":"master","id":"1046042"}');
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED'); process.exit(fails ? 1 : 0);

@@ -195,6 +195,30 @@ canvas.spec { width: 100%; height: 170px; display: block; }
 .st-thick { stroke: var(--ink); stroke-width: 2.4; fill: none; }
 .st-flat { stroke: var(--ink); stroke-width: 1.5; fill: none; stroke-linejoin: round; }
 
+.combo { position: relative; flex: 1 1 240px; min-width: 0; }
+.combo input { width: 100%; }
+.suggest { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 6px); background: var(--panel); border: 1.5px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: 0 14px 40px rgba(20, 15, 50, .18); max-height: 62vh; overflow-y: auto; }
+.sug { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; font-weight: 400; text-align: left; border-radius: 0; cursor: pointer; }
+.sug:first-child { border-top: 0; }
+.sug[aria-selected="true"], .sug:hover { background: var(--paper); }
+.sug img, .cover-ph { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex: 0 0 auto; background: var(--line); }
+.sug-hint { padding: 10px 14px; font-size: 13px; color: var(--muted); }
+.opt-group { margin-top: 18px; }
+.opt-group h3 { margin-bottom: 8px; }
+.item .go { font-size: 13px; color: var(--accent); font-weight: 600; white-space: nowrap; }
+.track-title { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 700; font-size: 16.5px; text-align: left; cursor: pointer; border-radius: 0; }
+.track-title:hover { color: var(--accent); }
+.detail { position: fixed; inset: 0; z-index: 50; background: rgba(15, 10, 35, .45); display: flex; align-items: flex-end; justify-content: center; }
+.detail-card { position: relative; width: min(640px, 100%); max-height: 92vh; overflow-y: auto; background: var(--paper); border-radius: 24px 24px 0 0; padding: 24px 20px calc(28px + env(safe-area-inset-bottom)); }
+@media (min-width: 700px) { .detail { align-items: center; } .detail-card { border-radius: 24px; } }
+.detail-close { position: absolute; top: 14px; right: 14px; }
+.detail-head { display: flex; gap: 16px; align-items: center; padding-right: 44px; }
+.detail-head img, .detail-head .cover-ph { width: 84px; height: 84px; border-radius: 12px; }
+.detail-head h2 { margin: 0; font-size: 20px; }
+#detail-body > .status { margin-top: 14px; }
+@media (hover: none) { a.item:hover { background: none; } }
+.again { display: flex; gap: 8px; margin-top: 18px; }
+.again input { flex: 1 1 auto; min-width: 0; }
 @media (max-width: 480px) {
   .view { padding: 4px 16px 28px; }
   .top { padding-left: 16px; padding-right: 16px; }
@@ -221,7 +245,10 @@ canvas.spec { width: 100%; height: 170px; display: block; }
     <form class="search" id="find-form" autocomplete="off">
       <label class="sr" for="find-input">Artist - Title, or a link</label>
       <div class="row">
-        <input type="text" id="find-input" placeholder="Artist - Title, or paste a link" enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <div class="combo">
+          <input type="text" id="find-input" placeholder="Song, artist, or paste a link" enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggest">
+          <div class="suggest" id="suggest" role="listbox" aria-label="Likely tracks" hidden></div>
+        </div>
         <button class="primary" type="submit" id="find-go">Find it</button>
       </div>
       <div class="row">
@@ -249,7 +276,7 @@ canvas.spec { width: 100%; height: 170px; display: block; }
       <div class="chips" id="manual-links" style="margin-top: 10px"></div>
     </div>
     <div id="dig-empty">
-      <p class="hint">Type a track and Clean Crate checks Beatport, Bandcamp and Apple for you, finds the cheapest lossless copy, and saves it to your crate with its BPM and key.</p>
+      <p class="hint">Start typing a song and pick it from the list. Clean Crate prices it on Beatport and Bandcamp, finds the cheapest CD or vinyl on Discogs, and lines up every other place to get it: Qobuz, Traxsource, Juno, 7digital, eBay, Amazon, free routes and sampling sources. Tracks you pick are saved to your crate with their BPM and key.</p>
       <div id="recent" style="margin-top: 16px"></div>
     </div>
   </section>
@@ -327,6 +354,12 @@ canvas.spec { width: 100%; height: 170px; display: block; }
       <div class="row"><button class="ghost" type="button" id="check-clear">Clear results</button></div>
     </div>
   </section>
+  <div class="detail" id="detail" hidden role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <div class="detail-card">
+      <button class="ghost detail-close" type="button" id="detail-close" aria-label="Close">✕</button>
+      <div id="detail-body"></div>
+    </div>
+  </div>
 </main>
 
 <nav class="tabs" aria-label="Sections">
